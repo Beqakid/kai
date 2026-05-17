@@ -17,7 +17,7 @@ KAI_DEFAULT_AUTONOMY = "GUIDE_ONLY"
 [[d1_databases]]
 binding = "KAI_DB"
 database_name = "kai-db"
-database_id = "replace-with-cloudflare-d1-database-id"
+database_id = "c00f52df-b774-45d2-b39d-1f1666dc3844"
 
 # Future bindings:
 # [[r2_buckets]]
