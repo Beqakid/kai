@@ -1,0 +1,16 @@
+{
+  "files": [],
+  "references": [
+    { "path": "./packages/kai-core" },
+    { "path": "./packages/kai-language" },
+    { "path": "./packages/kai-governance" },
+    { "path": "./packages/kai-knowledge" },
+    { "path": "./packages/kai-workflows" },
+    { "path": "./packages/kai-actions" },
+    { "path": "./packages/kai-website-builder" },
+    { "path": "./packages/kai-voice" },
+    { "path": "./packages/kai-cloudflare" },
+    { "path": "./packages/kai-ui" },
+    { "path": "./integrations/viliniu" }
+  ]
+}

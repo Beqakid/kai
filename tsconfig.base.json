@@ -1,0 +1,29 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "strict": true,
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
+    "composite": true,
+    "skipLibCheck": true,
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    "jsx": "react-jsx",
+    "baseUrl": ".",
+    "paths": {
+      "@kai/core": ["packages/kai-core/src/index.ts"],
+      "@kai/language": ["packages/kai-language/src/index.ts"],
+      "@kai/governance": ["packages/kai-governance/src/index.ts"],
+      "@kai/knowledge": ["packages/kai-knowledge/src/index.ts"],
+      "@kai/workflows": ["packages/kai-workflows/src/index.ts"],
+      "@kai/actions": ["packages/kai-actions/src/index.ts"],
+      "@kai/website-builder": ["packages/kai-website-builder/src/index.ts"],
+      "@kai/voice": ["packages/kai-voice/src/index.ts"],
+      "@kai/cloudflare": ["packages/kai-cloudflare/src/index.ts"],
+      "@kai/ui": ["packages/kai-ui/src/index.ts"]
+    }
+  }
+}

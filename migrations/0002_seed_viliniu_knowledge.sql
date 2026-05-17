@@ -1,0 +1,20 @@
+INSERT OR IGNORE INTO kai_knowledge_sources (id, app, language, title, path, summary)
+VALUES
+  ('viliniu_en_overview', 'viliniu', 'en', 'Overview', 'knowledge/viliniu/en/overview.md', 'Viliniu platform overview.'),
+  ('viliniu_en_onboarding', 'viliniu', 'en', 'Onboarding', 'knowledge/viliniu/en/onboarding.md', 'Viliniu onboarding steps.'),
+  ('viliniu_en_faq', 'viliniu', 'en', 'FAQ', 'knowledge/viliniu/en/faq.md', 'Common Kai and Viliniu questions.'),
+  ('viliniu_en_privacy_summary', 'viliniu', 'en', 'Privacy Summary', 'knowledge/viliniu/en/privacy-summary.md', 'Plain-language privacy summary, not legal advice.'),
+  ('viliniu_en_terms_summary', 'viliniu', 'en', 'Terms Summary', 'knowledge/viliniu/en/terms-summary.md', 'Plain-language terms summary, not legal advice.'),
+  ('viliniu_en_website_builder', 'viliniu', 'en', 'Website Builder', 'knowledge/viliniu/en/website-builder.md', 'AI website setup workflow guidance.'),
+  ('viliniu_es_overview', 'viliniu', 'es', 'Resumen', 'knowledge/viliniu/es/overview.md', 'Resumen de Viliniu.'),
+  ('viliniu_es_onboarding', 'viliniu', 'es', 'Incorporacion', 'knowledge/viliniu/es/onboarding.md', 'Pasos de incorporacion.'),
+  ('viliniu_es_faq', 'viliniu', 'es', 'Preguntas frecuentes', 'knowledge/viliniu/es/faq.md', 'Preguntas comunes.'),
+  ('viliniu_es_privacy_summary', 'viliniu', 'es', 'Resumen de privacidad', 'knowledge/viliniu/es/privacy-summary.md', 'Resumen de privacidad, no asesoramiento legal.'),
+  ('viliniu_es_terms_summary', 'viliniu', 'es', 'Resumen de terminos', 'knowledge/viliniu/es/terms-summary.md', 'Resumen de terminos, no asesoramiento legal.'),
+  ('viliniu_es_website_builder', 'viliniu', 'es', 'Creador de sitios web', 'knowledge/viliniu/es/website-builder.md', 'Guia del flujo de sitio web.'),
+  ('viliniu_fj_overview', 'viliniu', 'fj', 'Viliniu', 'knowledge/viliniu/fj/overview.md', 'iVakamacala ni Viliniu.'),
+  ('viliniu_fj_onboarding', 'viliniu', 'fj', 'Veivakarautaki', 'knowledge/viliniu/fj/onboarding.md', 'Veidusimaki ni onboarding.'),
+  ('viliniu_fj_faq', 'viliniu', 'fj', 'Taro Dau Tarogi', 'knowledge/viliniu/fj/faq.md', 'Taro dau tarogi.'),
+  ('viliniu_fj_privacy_summary', 'viliniu', 'fj', 'Privacy Summary', 'knowledge/viliniu/fj/privacy-summary.md', 'iVakamacala lekaleka ni privacy, sega ni ivakasala vakalawa.'),
+  ('viliniu_fj_terms_summary', 'viliniu', 'fj', 'Terms Summary', 'knowledge/viliniu/fj/terms-summary.md', 'iVakamacala lekaleka ni terms, sega ni ivakasala vakalawa.'),
+  ('viliniu_fj_website_builder', 'viliniu', 'fj', 'AI Website Builder', 'knowledge/viliniu/fj/website-builder.md', 'Veidusimaki ni website draft.');

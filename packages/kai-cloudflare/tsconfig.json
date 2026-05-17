@@ -1,0 +1,14 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "outDir": "dist",
+    "rootDir": "src",
+    "types": ["@cloudflare/workers-types"]
+  },
+  "include": ["src"],
+  "references": [
+    { "path": "../kai-core" },
+    { "path": "../kai-language" },
+    { "path": "../kai-workflows" }
+  ]
+}

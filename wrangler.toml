@@ -1,0 +1,33 @@
+name = "kai"
+main = "packages/kai-cloudflare/src/worker.ts"
+compatibility_date = "2026-05-17"
+
+[vars]
+AI_COACH_ENABLED = "true"
+AI_COACH_VOICE_ENABLED = "false"
+AI_COACH_WAKEWORD_ENABLED = "false"
+AI_COACH_MULTILINGUAL = "true"
+AI_COACH_INTERVIEW_MODE = "false"
+AI_COACH_ADAPTIVE_LEARNING = "false"
+AI_COACH_AGENT_MODE = "false"
+AI_COACH_SUPPORT_ESCALATION = "false"
+KAI_DEFAULT_LANGUAGE = "en"
+KAI_DEFAULT_AUTONOMY = "GUIDE_ONLY"
+
+[[d1_databases]]
+binding = "KAI_DB"
+database_name = "kai-db"
+database_id = "replace-with-cloudflare-d1-database-id"
+
+# Future bindings:
+# [[r2_buckets]]
+# binding = "KAI_R2"
+# bucket_name = "kai-files"
+#
+# [[vectorize]]
+# binding = "KAI_VECTORIZE"
+# index_name = "kai-knowledge"
+#
+# [[durable_objects.bindings]]
+# name = "KAI_SESSION_DO"
+# class_name = "KaiSessionDurableObject"
