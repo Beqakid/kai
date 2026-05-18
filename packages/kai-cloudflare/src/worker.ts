@@ -130,17 +130,17 @@ function inferPageContext(input: { path?: string; url?: string; title?: string }
   const host = url ? new URL(url).hostname : "";
   const normalizedPath = path.toLowerCase();
 
-  if (host.startsWith("shop.") || host.includes("storefront") || normalizedPath.includes("products") || normalizedPath.includes("vendors")) {
-    return { appSurface: "storefront", path, url, title: input.title, pageIntent: "shopping and marketplace guidance" };
-  }
-  if (host.startsWith("vendor.") || host.includes("vendor") || normalizedPath.includes("dashboard/products") || normalizedPath.includes("dashboard/store")) {
-    return { appSurface: "vendor", path, url, title: input.title, pageIntent: "vendor onboarding, listings, orders, and website setup" };
-  }
   if (host.startsWith("admin.") || host.includes("admin")) {
     return { appSurface: "admin", path, url, title: input.title, pageIntent: "admin dashboard explanation and safe operational guidance" };
   }
   if (host.startsWith("delivery.") || host.includes("delivery")) {
     return { appSurface: "delivery", path, url, title: input.title, pageIntent: "delivery workflow guidance" };
+  }
+  if (host.startsWith("vendor.") || host.includes("vendor") || normalizedPath.includes("dashboard/products") || normalizedPath.includes("dashboard/store")) {
+    return { appSurface: "vendor", path, url, title: input.title, pageIntent: "vendor onboarding, listings, orders, and website setup" };
+  }
+  if (host.startsWith("shop.") || host.includes("storefront") || normalizedPath.includes("products") || normalizedPath.includes("vendors")) {
+    return { appSurface: "storefront", path, url, title: input.title, pageIntent: "shopping and marketplace guidance" };
   }
   if (host.includes("viliniu.com") || host.includes("landing")) {
     return { appSurface: "landing", path, url, title: input.title, pageIntent: "public onboarding and Viliniu explanation" };
