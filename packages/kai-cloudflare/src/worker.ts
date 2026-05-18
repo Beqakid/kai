@@ -527,7 +527,7 @@ function createEmbedScript(origin: string): string {
 
   function startWebsitePreviewLeadFlow() {
     addMessage("user", "Draft my business website before signup.");
-    addAssistantHtml('<div class="kai-embed-lead" data-kai-lead-form><h3>Let us draft your website first.</h3><p>Answer a few basics. You can preview the draft, then create a vendor account only when you want to save or publish it.</p><label>Business name<input name="businessName" autocomplete="organization" placeholder="Bula Fresh"></label><label>Business type<input name="businessType" placeholder="Farm produce vendor"></label><label>Products or services<textarea name="offerings" placeholder="Fresh vegetables, herbs, weekly produce boxes"></textarea></label><label>Location or service area<input name="location" placeholder="Suva, Fiji"></label><label>Contact for customers<input name="contactInfo" placeholder="Phone, email, WhatsApp, or address"></label><label>Brand colors or style<input name="colors" placeholder="Green, warm, fresh"></label><label>Short business story<textarea name="businessStory" placeholder="What should customers know about your business?"></textarea></label><label>Preferred customer action<input name="preferredCustomerAction" placeholder="Order Now, Call Us, Request Quote"></label><div class="kai-embed-lead-actions"><button class="kai-embed-primary" type="button" data-kai-lead-submit>Generate preview</button><button class="kai-embed-secondary" type="button" data-kai-lead-cancel>Maybe later</button></div></div>');
+    addAssistantHtml('<div class="kai-embed-lead" data-kai-lead-form><h3>Let us draft your website first.</h3><p>Answer a few basics. You can preview the draft, then create a vendor account only when you want to save or publish it.</p><label>Business name<input name="businessName" autocomplete="organization" placeholder="Bula Fresh"></label><label>Business type<input name="businessType" placeholder="Farm produce vendor"></label><label>Products or services<textarea name="offerings" placeholder="Fresh vegetables, herbs, weekly produce boxes"></textarea></label><label>Location or service area<input name="location" placeholder="Suva, Fiji"></label><label>Contact for customers<input name="contactInfo" placeholder="Phone, email, WhatsApp, or address"></label><label>Brand colors or style<input name="colors" placeholder="Green, warm, fresh"></label><label>Short business story<textarea name="businessStory" placeholder="What should customers know about your business?"></textarea></label><label>Preferred customer action<input name="preferredCustomerAction" placeholder="Order Now, Call Us, Request Quote"></label><div class="kai-embed-lead-actions"><button class="kai-embed-primary" type="button" data-kai-lead-submit>Generate preview</button><button class="kai-embed-secondary" type="button" data-kai-lead-sample>Show sample</button><button class="kai-embed-secondary" type="button" data-kai-lead-cancel>Maybe later</button></div></div>');
   }
 
   function field(formNode, name) {
@@ -626,6 +626,33 @@ function createEmbedScript(origin: string): string {
   messages.addEventListener("click", async function (event) {
     var target = event.target;
     if (!target || !target.getAttribute) return;
+    if (target.getAttribute("data-kai-lead-sample") !== null) {
+      var sampleFormNode = target.closest("[data-kai-lead-form]");
+      if (!sampleFormNode) return;
+      target.disabled = true;
+      target.textContent = "Generating...";
+      try {
+        var sampleSession = await ensureSession();
+        var sampleResponse = await fetch(apiBase.replace(/\\/$/, "") + "/api/kai/website-draft", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ app: app, sessionId: sampleSession, userRole: userRole, answers: { businessName: "Bula Fresh", businessType: "farm produce vendor", products: ["Fresh vegetables", "Herbs", "Weekly produce boxes"], services: ["Weekly produce box delivery"], location: "Suva, Fiji", serviceArea: "Suva and nearby communities", contactInfo: "hello@example.com", preferredBrandingColors: ["green", "warm", "fresh"], businessStory: "Family-run local produce with weekly boxes for busy households.", preferredCustomerAction: "Order Now", hasLogo: false } })
+        });
+        var sampleData = await sampleResponse.json();
+        if (sampleData.draft) {
+          try { sessionStorage.setItem("kai.lastWebsiteDraft", JSON.stringify({ draftId: sampleData.draftId, draft: sampleData.draft })); } catch (error) {}
+          renderDraftPreview(sampleFormNode, sampleData.draft, sampleData.draftId);
+        } else {
+          addMessage("assistant", sampleData.error || "Kai could not create the sample preview yet.");
+        }
+      } catch (error) {
+        addMessage("assistant", "Kai could not create the sample preview right now.");
+      } finally {
+        target.disabled = false;
+        target.textContent = "Show sample";
+      }
+      return;
+    }
     if (target.getAttribute("data-kai-lead-cancel") !== null) {
       addMessage("assistant", "No problem. I can draft the website whenever the business is ready.");
       return;
