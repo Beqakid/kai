@@ -12,8 +12,9 @@ Included:
 - D1-backed workflow-state migration.
 - Keyword knowledge-source retrieval from D1 metadata.
 - Draft-only AI website builder output with audit logging.
+- Draft IDs for website-preview lead handoff.
 - CORS allowlist for Viliniu production and Pages domains.
-- Universal embed quick actions: explain page, show workflows, website draft.
+- Universal embed quick actions: explain page, show workflows, website preview.
 
 Deployment note:
 

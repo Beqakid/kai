@@ -140,6 +140,15 @@ generation. Payload/Viliniu remains the source of truth for identity, roles,
 ownership, and access control. KAI only receives safe role/context hints and
 continues to operate in guide-only mode.
 
+## Phase 2.5
+
+Phase 2.5 adds the Viliniu website preview lead flow. A visitor can open Kai,
+draft a simple business website before signup, preview the draft in the widget,
+and then go to vendor registration with a `kaiDraftId` reference. Kai still does
+not submit forms, save, publish, or modify Viliniu data automatically.
+
+See `docs/phase-2-5-website-preview-lead-flow.md`.
+
 ## Future Carehia Notes
 
 Carehia should be integrated through `integrations/carehia` using the same
