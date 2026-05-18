@@ -19,6 +19,7 @@ export interface KaiWorkerEnv {
 }
 
 const defaultAllowedOrigins = new Set([
+  "https://kai.jjioji.workers.dev",
   "https://viliniu.com",
   "https://www.viliniu.com",
   "https://viliniu-landing.pages.dev",
@@ -65,6 +66,15 @@ function javascript(source: string): Response {
     headers: {
       "Content-Type": "application/javascript; charset=utf-8",
       "Access-Control-Allow-Origin": "*",
+      "Cache-Control": "public, max-age=300",
+    },
+  });
+}
+
+function html(source: string): Response {
+  return new Response(source, {
+    headers: {
+      "Content-Type": "text/html; charset=utf-8",
       "Cache-Control": "public, max-age=300",
     },
   });
@@ -905,6 +915,83 @@ function createEmbedScript(origin: string): string {
 })();`;
 }
 
+function createKaiDemoPage(origin: string): string {
+  return `<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Kai guided onboarding demo</title>
+    <style>
+      :root {
+        color-scheme: light;
+        font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        background: #f5f2eb;
+        color: #22201d;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+      }
+
+      main {
+        display: grid;
+        min-height: 100vh;
+        place-items: center;
+        padding: 32px 20px;
+      }
+
+      .demo-shell {
+        width: min(960px, 100%);
+      }
+
+      .demo-kicker {
+        color: #7f5f22;
+        font-size: 13px;
+        font-weight: 800;
+        letter-spacing: .08em;
+        text-transform: uppercase;
+      }
+
+      h1 {
+        max-width: 760px;
+        margin: 14px 0 18px;
+        font-size: clamp(34px, 6vw, 72px);
+        line-height: .94;
+      }
+
+      p {
+        max-width: 640px;
+        color: #4f4840;
+        font-size: 18px;
+        line-height: 1.55;
+      }
+
+      .demo-note {
+        margin-top: 28px;
+        color: #70675d;
+        font-size: 14px;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <section class="demo-shell" aria-label="Kai demo surface">
+        <div class="demo-kicker">Viliniu onboarding preview</div>
+        <h1>Build the business website first. Create the vendor account after.</h1>
+        <p>
+          This safe demo page shows Kai as a personal setup assistant: one guided question at a time,
+          a live draft preview, and approval before anything becomes public.
+        </p>
+        <p class="demo-note">Use the Kai button in the lower-right corner to start.</p>
+      </section>
+    </main>
+    <script src="${origin}/embed/kai.js" data-app="viliniu" data-api-base="${origin}" defer></script>
+  </body>
+</html>`;
+}
+
 export default {
   async fetch(request: Request, env: KaiWorkerEnv): Promise<Response> {
     if (request.method === "OPTIONS") return json(request, env, { ok: true });
@@ -941,6 +1028,9 @@ export default {
     }
     if (url.pathname === "/api/kai/website-draft" && request.method === "GET") {
       return getWebsiteDraft(request, env);
+    }
+    if (url.pathname === "/demo/kai" && request.method === "GET") {
+      return html(createKaiDemoPage(url.origin));
     }
     if ((url.pathname === "/embed/kai.js" || url.pathname === "/kai.js") && request.method === "GET") {
       return javascript(createEmbedScript(url.origin));

@@ -109,6 +109,8 @@ Do not commit secrets.
 - `GET /api/kai/context`
 - `POST /api/kai/workflow-state`
 - `POST /api/kai/website-draft`
+- `GET /api/kai/website-draft?id=...`
+- `GET /demo/kai` development demo page for the embedded Viliniu onboarding flow
 
 ## Feature Flags
 
@@ -159,6 +161,10 @@ shows progress, builds a live preview, and keeps chat available only as a
 secondary side-question surface. Voice remains a disabled placeholder.
 
 See `docs/phase-2-6-pa-guided-onboarding.md`.
+
+For previewing while Viliniu production domains are behind placeholder gates, use
+`https://kai.jjioji.workers.dev/demo/kai`. This page is a demo surface only; it
+does not publish, save to Viliniu, submit forms, or process payments.
 
 ## Future Carehia Notes
 
