@@ -15,6 +15,13 @@ Included:
 - CORS allowlist for Viliniu production and Pages domains.
 - Universal embed quick actions: explain page, show workflows, website draft.
 
+Deployment note:
+
+- Apply `migrations/0003_kai_phase2_workflows.sql` before relying on
+  `POST /api/kai/workflow-state`.
+- The GitHub Actions workflow `Apply KAI D1 migrations` can run the migration
+  with `CLOUDFLARE_ID` and `CLOUDFLARE_TOKEN_API` repository secrets.
+
 Still out of scope:
 
 - Form submission.
