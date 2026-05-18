@@ -151,6 +151,15 @@ not submit forms, save, publish, or modify Viliniu data automatically.
 
 See `docs/phase-2-5-website-preview-lead-flow.md`.
 
+## Phase 2.6
+
+Phase 2.6 shifts the embedded experience from chat-first to guided-first. Kai
+opens as a personal setup assistant, asks one website setup question at a time,
+shows progress, builds a live preview, and keeps chat available only as a
+secondary side-question surface. Voice remains a disabled placeholder.
+
+See `docs/phase-2-6-pa-guided-onboarding.md`.
+
 ## Future Carehia Notes
 
 Carehia should be integrated through `integrations/carehia` using the same
