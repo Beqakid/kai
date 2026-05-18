@@ -552,7 +552,7 @@ function createEmbedScript(origin: string): string {
     var title = document.createElement("h3");
     title.textContent = "Website preview for " + draft.businessName;
     var intro = document.createElement("p");
-    intro.textContent = "Here is a draft you can save and publish after creating a vendor account.";
+    intro.textContent = "Here is a draft you can save after creating a vendor account, then keep improving before approval.";
     var list = document.createElement("dl");
     appendPreviewRow(list, "Headline", draft.businessName);
     appendPreviewRow(list, "Tagline", draft.tagline);
@@ -565,7 +565,7 @@ function createEmbedScript(origin: string): string {
     appendPreviewRow(list, "Brand colors", draft.branding && draft.branding.suggestedColors);
     appendPreviewRow(list, "Logo idea", draft.logoPrompt);
     var note = document.createElement("p");
-    note.textContent = "Kai will not publish anything automatically. Create a free Viliniu vendor account to save this draft and continue.";
+    note.textContent = "Kai will not publish anything automatically. Create a free Viliniu vendor account to save this draft, keep building, and request approval before going live.";
     var actions = document.createElement("div");
     actions.className = "kai-embed-preview-actions";
     var signup = document.createElement("button");
@@ -736,7 +736,7 @@ function createEmbedScript(origin: string): string {
 
   setLanguage(language);
   if (new URLSearchParams(window.location.search).get("kaiDraftId")) {
-    addMessage("assistant", "This signup link includes a Kai website draft reference. Create your vendor account when you are ready, then the draft can be reviewed before saving or publishing.");
+    addMessage("assistant", "This signup link includes a Kai website draft reference. Create your vendor account when you are ready, then keep building your store. Approval is only needed before public launch, orders, and payments.");
   }
 })();`;
 }

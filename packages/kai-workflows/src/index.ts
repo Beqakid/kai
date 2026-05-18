@@ -19,9 +19,12 @@ export const kaiWorkflowRegistry: KaiWorkflowDefinition[] = [
     permissions: ["canUseWorkflows"],
     completionState: "not_started",
     steps: [
-      { id: "profile", title: "Create vendor profile" },
-      { id: "store", title: "Set store basics" },
-      { id: "listings", title: "Add first products or services" },
+      { id: "preview", title: "Preview website draft before signup", prompt: "Let Kai create a draft website so the vendor sees value immediately." },
+      { id: "account", title: "Create vendor account to save progress", prompt: "Signup saves the draft and opens the setup workspace." },
+      { id: "profile", title: "Create vendor profile", prompt: "Collect business identity, contact, location, and delivery basics." },
+      { id: "store", title: "Set store basics", prompt: "Let the vendor keep editing while approval is pending." },
+      { id: "listings", title: "Add first products or services", prompt: "Products can be drafted and submitted for review before the store is public." },
+      { id: "review", title: "Submit for approval before going live", prompt: "Approval gates marketplace visibility, public publishing, orders, payments, and customer contact." },
     ],
   },
   {
@@ -85,6 +88,8 @@ export const kaiWorkflowRegistry: KaiWorkflowDefinition[] = [
       { id: "story", title: "Short business story" },
       { id: "cta", title: "Preferred customer action" },
       { id: "draft", title: "Generate structured website draft" },
+      { id: "save", title: "Create account to save draft" },
+      { id: "approval", title: "Approval before public launch" },
     ],
   },
   {

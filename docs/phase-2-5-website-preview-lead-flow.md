@@ -14,9 +14,15 @@ Flow:
 6. Kai offers `Create account to save`.
 7. The visitor is sent to the Viliniu vendor registration page with a draft
    reference in the URL.
+8. The vendor can keep building store details, products, and services while
+   approval is pending.
 
 This is still guide-only. Kai does not create accounts, submit forms, publish
 websites, send emails, take payments, or change Viliniu data.
+
+Approval should gate public launch, marketplace visibility, orders, payments,
+and customer contact. Approval should not block drafting, profile setup, product
+setup, service setup, or private previews.
 
 ## Draft Persistence
 
@@ -43,6 +49,7 @@ of truth for saving and publishing.
 
 - Draft generation is permission checked.
 - Website output is draft-only.
-- Approval is required before saving or publishing.
+- Approval is required before public launch, marketplace discovery, orders, and
+  payments.
 - Kai never submits the vendor registration form.
 - Kai never modifies production systems by itself.

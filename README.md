@@ -144,7 +144,9 @@ continues to operate in guide-only mode.
 
 Phase 2.5 adds the Viliniu website preview lead flow. A visitor can open Kai,
 draft a simple business website before signup, preview the draft in the widget,
-and then go to vendor registration with a `kaiDraftId` reference. Kai still does
+and then go to vendor registration with a `kaiDraftId` reference. Vendors can
+keep building while approval is pending; approval only gates public launch,
+marketplace visibility, orders, payments, and customer contact. Kai still does
 not submit forms, save, publish, or modify Viliniu data automatically.
 
 See `docs/phase-2-5-website-preview-lead-flow.md`.

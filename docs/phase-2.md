@@ -13,6 +13,8 @@ Included:
 - Keyword knowledge-source retrieval from D1 metadata.
 - Draft-only AI website builder output with audit logging.
 - Draft IDs for website-preview lead handoff.
+- Approval-safe onboarding: users can build drafts, profiles, products, and
+  services before approval, while public launch and transactions remain gated.
 - CORS allowlist for Viliniu production and Pages domains.
 - Universal embed quick actions: explain page, show workflows, website preview.
 
