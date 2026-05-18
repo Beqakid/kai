@@ -10,6 +10,7 @@
   "dependencies": {
     "@kai/core": "0.1.0",
     "@kai/language": "0.1.0",
+    "@kai/website-builder": "0.1.0",
     "@kai/workflows": "0.1.0"
   }
 }

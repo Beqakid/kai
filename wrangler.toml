@@ -13,6 +13,7 @@ AI_COACH_AGENT_MODE = "false"
 AI_COACH_SUPPORT_ESCALATION = "false"
 KAI_DEFAULT_LANGUAGE = "en"
 KAI_DEFAULT_AUTONOMY = "GUIDE_ONLY"
+KAI_ALLOWED_ORIGINS = "https://viliniu.com,https://www.viliniu.com,https://viliniu-landing.pages.dev,https://shop.viliniu.com,https://viliniu-storefront.pages.dev,https://vendor.viliniu.com,https://viliniu-vendor.pages.dev,https://admin.viliniu.com,https://viliniu-admin.pages.dev,https://delivery.viliniu.com,https://viliniu-delivery.pages.dev"
 
 [[d1_databases]]
 binding = "KAI_DB"

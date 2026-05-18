@@ -9,6 +9,7 @@
   "references": [
     { "path": "../kai-core" },
     { "path": "../kai-language" },
+    { "path": "../kai-website-builder" },
     { "path": "../kai-workflows" }
   ]
 }

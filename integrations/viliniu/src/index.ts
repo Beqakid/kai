@@ -4,23 +4,70 @@ import { kaiWorkflowRegistry } from "@kai/workflows";
 
 export interface ViliniuKaiRegistrationInput {
   userId?: string;
-  userRole?: string;
+  userRole?: ViliniuKaiRole;
   permissions?: KaiPermissionSet;
   language?: "en" | "es" | "fj";
 }
 
+export type ViliniuKaiRole = "visitor" | "customer" | "vendor" | "service_provider" | "driver" | "admin" | string;
+
+export function mapViliniuPayloadRoleToKaiPermissions(role: ViliniuKaiRole = "visitor"): KaiPermissionSet {
+  if (role === "admin") {
+    return {
+      canReadKnowledge: true,
+      canUseWorkflows: true,
+      canGenerateWebsiteDraft: true,
+      canSuggestFormContent: true,
+      canNavigate: true,
+      canViewAdminGuidance: true,
+      canViewDeliveryGuidance: true,
+    };
+  }
+
+  if (role === "vendor" || role === "service_provider") {
+    return {
+      canReadKnowledge: true,
+      canUseWorkflows: true,
+      canGenerateWebsiteDraft: true,
+      canSuggestFormContent: true,
+      canNavigate: true,
+    };
+  }
+
+  if (role === "driver") {
+    return {
+      canReadKnowledge: true,
+      canUseWorkflows: true,
+      canNavigate: true,
+      canViewDeliveryGuidance: true,
+    };
+  }
+
+  if (role === "customer") {
+    return {
+      canReadKnowledge: true,
+      canUseWorkflows: true,
+      canNavigate: true,
+    };
+  }
+
+  return {
+    canReadKnowledge: true,
+    canUseWorkflows: true,
+    canGenerateWebsiteDraft: true,
+  };
+}
+
 export function registerViliniuKai(input: ViliniuKaiRegistrationInput = {}): RegisteredKaiApp {
+  const rolePermissions = mapViliniuPayloadRoleToKaiPermissions(input.userRole);
+
   return registerKai({
     app: "viliniu",
     assistantName: "Kai",
     userId: input.userId,
     userRole: input.userRole,
     permissions: {
-      canReadKnowledge: true,
-      canUseWorkflows: true,
-      canGenerateWebsiteDraft: true,
-      canSuggestFormContent: true,
-      canNavigate: true,
+      ...rolePermissions,
       ...input.permissions,
     },
     workflows: kaiWorkflowRegistry.map((workflow) => ({

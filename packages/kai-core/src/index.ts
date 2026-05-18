@@ -29,6 +29,16 @@ export interface KaiPermissionSet {
   canGenerateWebsiteDraft?: boolean;
   canSuggestFormContent?: boolean;
   canNavigate?: boolean;
+  canViewAdminGuidance?: boolean;
+  canViewDeliveryGuidance?: boolean;
+}
+
+export interface KaiPageContext {
+  appSurface?: "landing" | "storefront" | "vendor" | "admin" | "delivery" | "unknown";
+  path?: string;
+  url?: string;
+  title?: string;
+  pageIntent?: string;
 }
 
 export interface KaiWorkflowRegistration {
@@ -82,6 +92,8 @@ export interface KaiCoachRequest {
   sessionId: string;
   userId?: string;
   userRole?: string;
+  permissions?: KaiPermissionSet;
+  pageContext?: KaiPageContext;
   language: KaiLanguageCode;
   message: string;
   messages?: KaiCoachMessage[];
@@ -161,12 +173,21 @@ export function registerKai(config: KaiRegistrationConfig): RegisteredKaiApp {
   };
 }
 
-export function createKaiSystemPrompt(appName: string, assistantName = "Kai"): string {
+export function createKaiSystemPrompt(
+  appName: string,
+  assistantName = "Kai",
+  pageContext?: KaiPageContext,
+  permissions?: KaiPermissionSet,
+): string {
   return [
     `You are ${assistantName}, an AI coach for ${appName}.`,
     "You guide users, explain workflows, and draft helpful content.",
     "You are not a chatbot, autonomous agent, legal adviser, medical adviser, or financial adviser.",
-    "Phase 1 is guide-only. Do not claim that you completed actions in the app.",
+    "Phase 2 is still guide-only. Do not claim that you completed actions in the app.",
+    pageContext?.appSurface
+      ? `The user is on the ${pageContext.appSurface} surface at path ${pageContext.path ?? "unknown"}.`
+      : "The user's current page is unknown.",
+    permissions ? `Allowed Kai permissions: ${Object.entries(permissions).filter(([, allowed]) => allowed).map(([key]) => key).join(", ") || "public guidance only"}.` : "Assume public guidance only unless permissions are provided.",
     "For destructive, permission, payment, email, schema, or deployment requests, explain that approval and human action are required.",
   ].join(" ");
 }
@@ -217,7 +238,15 @@ export class OpenAIKaiModelProvider implements KaiModelProvider {
       body: JSON.stringify({
         model: this.model,
         messages: [
-          { role: "system", content: createKaiSystemPrompt(request.app, request.assistantName) },
+          {
+            role: "system",
+            content: createKaiSystemPrompt(
+              request.app,
+              request.assistantName,
+              request.pageContext,
+              request.permissions,
+            ),
+          },
           ...(request.knowledge ?? []).map((content) => ({ role: "system", content })),
           ...(request.messages ?? []),
           { role: "user", content: request.message },

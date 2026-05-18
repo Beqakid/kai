@@ -106,6 +106,9 @@ Do not commit secrets.
 - `GET /api/kai/workflows`
 - `GET /api/kai/knowledge/sources`
 - `POST /api/kai/preferences`
+- `GET /api/kai/context`
+- `POST /api/kai/workflow-state`
+- `POST /api/kai/website-draft`
 
 ## Feature Flags
 
@@ -128,6 +131,14 @@ KAI Phase 1 may suggest next steps and draft content. It must not submit forms,
 delete data, send email, change permissions, process payments, deploy code,
 modify schemas, or provide legal, medical, or financial advice as final
 authority.
+
+## Phase 2
+
+Phase 2 adds page-aware guidance, Viliniu RBAC permission mapping, workflow-state
+tracking, keyword knowledge retrieval from D1 metadata, and draft-only website
+generation. Payload/Viliniu remains the source of truth for identity, roles,
+ownership, and access control. KAI only receives safe role/context hints and
+continues to operate in guide-only mode.
 
 ## Future Carehia Notes
 
