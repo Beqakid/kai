@@ -110,6 +110,7 @@ Do not commit secrets.
 - `POST /api/kai/workflow-state`
 - `POST /api/kai/website-draft`
 - `GET /api/kai/website-draft?id=...`
+- `POST /api/kai/creative-asset-draft`
 - `GET /demo/kai` development demo page for the embedded Viliniu onboarding flow
 
 ## Feature Flags
@@ -165,6 +166,16 @@ See `docs/phase-2-6-pa-guided-onboarding.md`.
 For previewing while Viliniu production domains are behind placeholder gates, use
 `https://kai.jjioji.workers.dev/demo/kai`. This page is a demo surface only; it
 does not publish, save to Viliniu, submit forms, or process payments.
+
+## Phase 2.7
+
+Phase 2.7 adds business-model routing and creative asset scaffolding. Kai now
+asks whether customers buy products, request services, or both, then adapts the
+website setup flow for product sellers, service providers, or hybrid businesses.
+It can prepare logo/product/service image prompts, but image generation, saving,
+and publishing remain approval-gated future work.
+
+See `docs/phase-2-7-business-model-creative-assets.md`.
 
 ## Future Carehia Notes
 

@@ -6,11 +6,18 @@ import {
   type KaiPermissionSet,
 } from "@kai/core";
 import { getKaiGreeting, normalizeKaiLanguage } from "@kai/language";
-import { generateWebsiteDraftFromAnswers, type KaiWebsiteBuilderAnswers } from "@kai/website-builder";
+import {
+  classifyBusinessModel,
+  createCreativeAssetDraftPrompt,
+  generateWebsiteDraftFromAnswers,
+  type KaiCreativeAssetDraftRequest,
+  type KaiWebsiteBuilderAnswers,
+} from "@kai/website-builder";
 import { kaiWorkflowRegistry } from "@kai/workflows";
 
 export interface KaiWorkerEnv {
   KAI_DB: D1Database;
+  KAI_R2?: R2Bucket;
   OPENAI_API_KEY?: string;
   KAI_DEFAULT_LANGUAGE?: string;
   AI_COACH_ENABLED?: string;
@@ -429,6 +436,64 @@ async function generateWebsiteDraft(request: Request, env: KaiWorkerEnv): Promis
   });
 }
 
+async function generateCreativeAssetDraft(request: Request, env: KaiWorkerEnv): Promise<Response> {
+  const body = (await request.json().catch(() => ({}))) as Partial<KaiCreativeAssetDraftRequest> & {
+    sessionId?: string;
+    userId?: string;
+    userRole?: string;
+    businessType?: string;
+  };
+  const permissions = mapRoleToPermissions(body.userRole);
+
+  if (!permissions.canSuggestFormContent) {
+    return json(request, env, { error: "Creative asset draft generation is not allowed for this role." }, { status: 403 });
+  }
+
+  if (!body.businessName || !body.assetType) {
+    return json(request, env, { error: "businessName and assetType are required" }, { status: 400 });
+  }
+
+  const businessModel = body.businessModel ?? classifyBusinessModel(body.businessType).businessModel;
+  const assetDraft = createCreativeAssetDraftPrompt({
+    app: body.app ?? "viliniu",
+    businessName: body.businessName,
+    businessModel,
+    assetType: body.assetType,
+    subject: body.subject,
+    brandColors: body.brandColors,
+    styleNotes: body.styleNotes,
+  });
+
+  const auditId = createId("kai_asset_draft");
+  await env.KAI_DB.prepare(
+    "INSERT INTO kai_audit_logs (id, app, session_id, user_id, action, permission, allowed, reason, metadata_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+  )
+    .bind(
+      auditId,
+      body.app ?? "viliniu",
+      body.sessionId ?? null,
+      body.userId ?? null,
+      `generate_${body.assetType}_draft`,
+      "canSuggestFormContent",
+      1,
+      "Generated creative asset prompt only. User approval is required before generation, saving, or publishing.",
+      JSON.stringify({ businessModel, assetDraft, storage: "future_r2" }),
+    )
+    .run();
+
+  return json(request, env, {
+    draftId: auditId,
+    businessModel,
+    assetDraft,
+    approvalRequired: true,
+    phase2Behavior: "draft_prompt_only",
+    storage: {
+      provider: "future_r2",
+      saved: false,
+    },
+  });
+}
+
 async function getWebsiteDraft(request: Request, env: KaiWorkerEnv): Promise<Response> {
   const url = new URL(request.url);
   const draftId = url.searchParams.get("id");
@@ -490,8 +555,18 @@ function createEmbedScript(origin: string): string {
 
   var guideSteps = [
     {
+      id: "businessModel",
+      label: "Step 1 of 8",
+      title: "Do customers buy products, book services, or both?",
+      helper: "This helps me route you into the right setup path.",
+      input: "choice-text",
+      placeholder: "Products / online store",
+      choices: ["Products / online store", "Services / bookings", "Both products and services"],
+      sample: "Products / online store"
+    },
+    {
       id: "businessName",
-      label: "Step 1 of 7",
+      label: "Step 2 of 8",
       title: "What is your business called?",
       helper: "I will use this for the website headline, SEO title, and business profile.",
       input: "text",
@@ -500,7 +575,7 @@ function createEmbedScript(origin: string): string {
     },
     {
       id: "businessType",
-      label: "Step 2 of 7",
+      label: "Step 3 of 8",
       title: "What type of business is it?",
       helper: "Choose one, or type your own.",
       input: "choice-text",
@@ -510,7 +585,7 @@ function createEmbedScript(origin: string): string {
     },
     {
       id: "offerings",
-      label: "Step 3 of 7",
+      label: "Step 4 of 8",
       title: "What do you sell or offer?",
       helper: "List products or services. A few words is enough.",
       input: "textarea",
@@ -519,7 +594,7 @@ function createEmbedScript(origin: string): string {
     },
     {
       id: "location",
-      label: "Step 4 of 7",
+      label: "Step 5 of 8",
       title: "Where do you serve customers?",
       helper: "This helps Kai shape local SEO and contact sections.",
       input: "text",
@@ -528,7 +603,7 @@ function createEmbedScript(origin: string): string {
     },
     {
       id: "contactInfo",
-      label: "Step 5 of 7",
+      label: "Step 6 of 8",
       title: "How should customers contact you?",
       helper: "Use phone, email, WhatsApp, or address.",
       input: "text",
@@ -537,7 +612,7 @@ function createEmbedScript(origin: string): string {
     },
     {
       id: "brand",
-      label: "Step 6 of 7",
+      label: "Step 7 of 8",
       title: "What style should the website feel like?",
       helper: "Choose a direction, or type colors.",
       input: "choice-text",
@@ -547,7 +622,7 @@ function createEmbedScript(origin: string): string {
     },
     {
       id: "preferredCustomerAction",
-      label: "Step 7 of 7",
+      label: "Step 8 of 8",
       title: "What should customers do first?",
       helper: "This becomes the main call-to-action.",
       input: "choice-text",
@@ -619,12 +694,31 @@ function createEmbedScript(origin: string): string {
     return splitList(valueFor("offerings"));
   }
 
+  function getBusinessModel() {
+    var value = valueFor("businessModel").toLowerCase();
+    var type = valueFor("businessType").toLowerCase();
+    var combined = value + " " + type;
+    if (combined.indexOf("both") >= 0 || combined.indexOf("hybrid") >= 0) return "hybrid";
+    if (combined.indexOf("service") >= 0 || combined.indexOf("booking") >= 0 || combined.indexOf("quote") >= 0) return "service_provider";
+    return "product_seller";
+  }
+
+  function getBusinessModelLabel() {
+    var model = getBusinessModel();
+    if (model === "service_provider") return "Service provider";
+    if (model === "hybrid") return "Hybrid business";
+    return "Product seller";
+  }
+
   function getDraftAnswers() {
+    var model = getBusinessModel();
+    var offerings = currentOfferingsList();
     return {
+      businessModel: model,
       businessName: valueFor("businessName"),
       businessType: valueFor("businessType"),
-      products: currentOfferingsList(),
-      services: currentOfferingsList(),
+      products: model === "service_provider" ? [] : offerings,
+      services: model === "product_seller" ? [] : offerings,
       location: valueFor("location"),
       serviceArea: valueFor("location"),
       contactInfo: valueFor("contactInfo"),
@@ -638,6 +732,7 @@ function createEmbedScript(origin: string): string {
   function renderInlinePreview() {
     var name = valueFor("businessName") || "Your Business";
     var type = valueFor("businessType") || "local business";
+    var modelLabel = getBusinessModelLabel();
     var offerings = currentOfferingsList();
     previewContent.innerHTML = "";
     var card = document.createElement("div");
@@ -647,7 +742,7 @@ function createEmbedScript(origin: string): string {
     var heroTitle = document.createElement("h4");
     heroTitle.textContent = name;
     var heroText = document.createElement("p");
-    heroText.textContent = name + " helps customers find trusted " + type + " offerings.";
+    heroText.textContent = name + " helps customers find trusted " + type + " offerings. Setup path: " + modelLabel + ".";
     hero.appendChild(heroTitle);
     hero.appendChild(heroText);
     card.appendChild(hero);
@@ -690,6 +785,25 @@ function createEmbedScript(origin: string): string {
 
   function renderGuideStep() {
     var step = guideSteps[guideStepIndex];
+    if (step.id === "offerings") {
+      var model = getBusinessModel();
+      if (model === "service_provider") {
+        step.title = "What services do you offer?";
+        step.helper = "List services customers can book or request quotes for.";
+        step.placeholder = "House cleaning, repairs, consultations";
+      } else if (model === "hybrid") {
+        step.title = "What products and services do you offer?";
+        step.helper = "List both sides. Kai will include products and services in the draft.";
+        step.placeholder = "Fresh bread, custom cakes, catering";
+      } else {
+        step.title = "What products do you sell?";
+        step.helper = "List store products. A few words is enough.";
+        step.placeholder = "Fresh vegetables, herbs, weekly produce boxes";
+      }
+    }
+    if (step.id === "preferredCustomerAction") {
+      step.placeholder = getBusinessModel() === "product_seller" ? "Order Now" : "Request Quote";
+    }
     stepLabel.textContent = step.label;
     stepTitle.textContent = step.title;
     stepHelper.textContent = step.helper;
@@ -785,6 +899,7 @@ function createEmbedScript(origin: string): string {
     card.appendChild(hero);
 
     [
+      ["Setup path", draft.businessModel === "service_provider" ? "Service provider" : draft.businessModel === "hybrid" ? "Hybrid business" : "Product seller"],
       ["About", draft.about],
       ["Products", draft.products && draft.products.join(", ")],
       ["Services", draft.services && draft.services.join(", ")],
@@ -805,6 +920,20 @@ function createEmbedScript(origin: string): string {
       section.appendChild(value);
       card.appendChild(section);
     });
+
+    if (draft.creativeAssetPrompts && draft.creativeAssetPrompts.length) {
+      var creative = document.createElement("div");
+      creative.className = "kai-site-section";
+      var creativeLabel = document.createElement("strong");
+      creativeLabel.textContent = "Logo and image draft prompts";
+      creative.appendChild(creativeLabel);
+      draft.creativeAssetPrompts.slice(0, 2).forEach(function (asset) {
+        var prompt = document.createElement("p");
+        prompt.textContent = asset.prompt;
+        creative.appendChild(prompt);
+      });
+      card.appendChild(creative);
+    }
 
     var actions = document.createElement("div");
     actions.className = "kai-site-section kai-preview-actions";
@@ -1028,6 +1157,9 @@ export default {
     }
     if (url.pathname === "/api/kai/website-draft" && request.method === "GET") {
       return getWebsiteDraft(request, env);
+    }
+    if (url.pathname === "/api/kai/creative-asset-draft" && request.method === "POST") {
+      return generateCreativeAssetDraft(request, env);
     }
     if (url.pathname === "/demo/kai" && request.method === "GET") {
       return html(createKaiDemoPage(url.origin));

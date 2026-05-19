@@ -19,6 +19,9 @@ export const disallowedPhase1Actions = new Set([
   "deploy_code",
   "modify_schema",
   "publish_website",
+  "save_media",
+  "publish_media",
+  "use_generated_asset_without_approval",
 ]);
 
 export function isPhase1ActionAllowed(actionId: string): boolean {

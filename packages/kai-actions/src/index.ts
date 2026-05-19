@@ -6,7 +6,11 @@ export type KaiActionId =
   | "explain_current_page"
   | "suggest_form_content"
   | "show_workflow_steps"
-  | "generate_website_draft";
+  | "generate_website_draft"
+  | "classify_business_model"
+  | "generate_logo_draft"
+  | "generate_product_image_draft"
+  | "generate_service_image_draft";
 
 export interface KaiActionDefinition {
   id: KaiActionId;
@@ -44,6 +48,30 @@ export const kaiActionRegistry: KaiActionDefinition[] = [
     id: "generate_website_draft",
     title: "Generate website draft",
     permission: "canGenerateWebsiteDraft",
+    phase1Behavior: "suggestion_only",
+  },
+  {
+    id: "classify_business_model",
+    title: "Classify business model",
+    permission: "canSuggestFormContent",
+    phase1Behavior: "suggestion_only",
+  },
+  {
+    id: "generate_logo_draft",
+    title: "Generate logo draft",
+    permission: "canSuggestFormContent",
+    phase1Behavior: "suggestion_only",
+  },
+  {
+    id: "generate_product_image_draft",
+    title: "Generate product image draft",
+    permission: "canSuggestFormContent",
+    phase1Behavior: "suggestion_only",
+  },
+  {
+    id: "generate_service_image_draft",
+    title: "Generate service image draft",
+    permission: "canSuggestFormContent",
     phase1Behavior: "suggestion_only",
   },
 ];

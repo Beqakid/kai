@@ -20,6 +20,7 @@ export const kaiWorkflowRegistry: KaiWorkflowDefinition[] = [
     completionState: "not_started",
     steps: [
       { id: "preview", title: "Preview website draft before signup", prompt: "Let Kai create a draft website so the vendor sees value immediately." },
+      { id: "model", title: "Confirm product, service, or hybrid business model", prompt: "Route the vendor into product listings, service listings, or both." },
       { id: "account", title: "Create vendor account to save progress", prompt: "Signup saves the draft and opens the setup workspace." },
       { id: "profile", title: "Create vendor profile", prompt: "Collect business identity, contact, location, and delivery basics." },
       { id: "store", title: "Set store basics", prompt: "Let the vendor keep editing while approval is pending." },
@@ -33,6 +34,7 @@ export const kaiWorkflowRegistry: KaiWorkflowDefinition[] = [
     permissions: ["canUseWorkflows"],
     completionState: "not_started",
     steps: [
+      { id: "model", title: "Confirm service provider model", prompt: "Confirm that customers mainly request quotes, bookings, or skilled services." },
       { id: "profile", title: "Create service profile" },
       { id: "coverage", title: "Set service area" },
       { id: "offerings", title: "Add service listings" },
@@ -77,6 +79,7 @@ export const kaiWorkflowRegistry: KaiWorkflowDefinition[] = [
     permissions: ["canUseWorkflows", "canGenerateWebsiteDraft"],
     completionState: "not_started",
     steps: [
+      { id: "model", title: "Products, services, or both" },
       { id: "business_name", title: "Business name" },
       { id: "business_type", title: "Business type" },
       { id: "offerings", title: "Products and services" },
@@ -88,6 +91,7 @@ export const kaiWorkflowRegistry: KaiWorkflowDefinition[] = [
       { id: "story", title: "Short business story" },
       { id: "cta", title: "Preferred customer action" },
       { id: "draft", title: "Generate structured website draft" },
+      { id: "creative", title: "Prepare logo and image draft prompts" },
       { id: "save", title: "Create account to save draft" },
       { id: "approval", title: "Approval before public launch" },
     ],
