@@ -111,6 +111,7 @@ Do not commit secrets.
 - `POST /api/kai/website-draft`
 - `GET /api/kai/website-draft?id=...`
 - `POST /api/kai/creative-asset-draft`
+- `POST /api/kai/viliniu/handoff`
 - `GET /demo/kai` development demo page for the embedded Viliniu onboarding flow
 
 ## Feature Flags

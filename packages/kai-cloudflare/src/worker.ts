@@ -533,6 +533,70 @@ async function getWebsiteDraft(request: Request, env: KaiWorkerEnv): Promise<Res
   });
 }
 
+async function recordViliniuHandoff(request: Request, env: KaiWorkerEnv): Promise<Response> {
+  const body = (await request.json().catch(() => ({}))) as {
+    app?: string;
+    draftId?: string;
+    userId?: string;
+    userRole?: string;
+    vendorId?: string | number;
+    handoffTarget?: string;
+    status?: string;
+    metadata?: Record<string, unknown>;
+  };
+
+  if (!body.draftId?.startsWith("kai_draft_")) {
+    return json(request, env, { error: "draftId is required" }, { status: 400 });
+  }
+
+  const draft = await env.KAI_DB.prepare(
+    "SELECT id, app, session_id, user_id, metadata_json FROM kai_audit_logs WHERE id = ? AND action = ? AND allowed = 1",
+  )
+    .bind(body.draftId, "generate_website_draft")
+    .first<{
+      id: string;
+      app: string;
+      session_id: string | null;
+      user_id: string | null;
+      metadata_json: string | null;
+    }>();
+
+  if (!draft) {
+    return json(request, env, { error: "Website draft was not found." }, { status: 404 });
+  }
+
+  const auditId = createId("kai_handoff");
+  await env.KAI_DB.prepare(
+    "INSERT INTO kai_audit_logs (id, app, session_id, user_id, action, permission, allowed, reason, metadata_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+  )
+    .bind(
+      auditId,
+      body.app ?? draft.app ?? "viliniu",
+      draft.session_id,
+      body.userId ?? draft.user_id,
+      "viliniu_vendor_handoff",
+      "canSuggestFormContent",
+      1,
+      "Recorded a non-destructive Kai draft handoff into Viliniu vendor onboarding.",
+      JSON.stringify({
+        draftId: body.draftId,
+        vendorId: body.vendorId ?? null,
+        userRole: body.userRole ?? null,
+        handoffTarget: body.handoffTarget ?? "vendor_store",
+        status: body.status ?? "store_setup_saved",
+        metadata: body.metadata ?? {},
+      }),
+    )
+    .run();
+
+  return json(request, env, {
+    ok: true,
+    handoffId: auditId,
+    draftId: body.draftId,
+    phase2Behavior: "audit_only",
+  });
+}
+
 function createEmbedScript(origin: string): string {
   return `
 (function () {
@@ -1160,6 +1224,9 @@ export default {
     }
     if (url.pathname === "/api/kai/creative-asset-draft" && request.method === "POST") {
       return generateCreativeAssetDraft(request, env);
+    }
+    if (url.pathname === "/api/kai/viliniu/handoff" && request.method === "POST") {
+      return recordViliniuHandoff(request, env);
     }
     if (url.pathname === "/demo/kai" && request.method === "GET") {
       return html(createKaiDemoPage(url.origin));
