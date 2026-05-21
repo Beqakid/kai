@@ -615,19 +615,24 @@ function createEmbedScript(origin: string): string {
   var guideAnswers = {};
 
   var appProfile = app === "carehia" ? {
-    launchText: "Start Carehia setup",
-    subtitle: "Care onboarding assistant",
-    previewTitle: "Care setup preview",
+    launchText: "Find care with Kai",
+    subtitle: "Carehia onboarding assistant",
+    previewTitle: "Care match preview",
     previewHint: "Kai builds this as you answer.",
-    emptyPreview: "Your Carehia onboarding plan will appear here. Use the sample to see the flow fast.",
-    completionTitle: "Your Carehia onboarding preview is ready.",
-    completionHelper: "Use this demo to show how Kai can guide care setup. In production, this would save into the Carehia workspace after approval.",
-    saveAction: "Save care plan demo",
+    emptyPreview: "Your caregiver search plan will appear here. Use the sample to see the flow fast.",
+    completionTitle: "Your caregiver search preview is ready.",
+    completionHelper: "Use this demo to show how Kai helps families understand care needs and start looking for caregivers. Kai guides setup only; final caregiver decisions stay with the family and Carehia team.",
+    saveAction: "Start caregiver search",
     signupPath: "/kai-demo",
+    finalActionFallback: "Find Caregivers",
+    finalActionLabel: "Next step",
+    setupPathLabel: "Care goal",
+    offeringsLabel: "Care needs",
+    previewHeroTemplate: "Kai is helping prepare a caregiver search for",
     greeting: {
-      en: "Hi, I'm Kai. I can help you understand Carehia, set up a care agency workspace, onboard caregivers, organize clients, and prepare care workflows.",
-      es: "Hola, soy Kai. Puedo ayudarte a entender Carehia, configurar un espacio de agencia de cuidado, incorporar cuidadores, organizar clientes y preparar flujos de cuidado.",
-      fj: "Bula, o yau o Kai. Au rawa ni vukei iko mo kila na Carehia, vakarautaka na care agency, caregivers, clients, kei na workflows ni veiqaravi."
+      en: "Hi, I'm Kai. I can help you understand Carehia, describe the care you need, and guide you toward finding suitable caregivers.",
+      es: "Hola, soy Kai. Puedo ayudarte a entender Carehia, describir el cuidado que necesitas y guiarte para encontrar cuidadores adecuados.",
+      fj: "Bula, o yau o Kai. Au rawa ni vukei iko mo kila na Carehia, tukuna na veivuke ni care o gadreva, ka dusimaki iko mo kunea na caregivers veiganiti."
     }
   } : {
     launchText: "Start with Kai",
@@ -639,6 +644,11 @@ function createEmbedScript(origin: string): string {
     completionHelper: "Create a vendor account to save it. Approval is only needed before public launch, orders, and payments.",
     saveAction: "Create account to save",
     signupPath: "https://vendor.viliniu.com/register",
+    finalActionFallback: "Request Quote",
+    finalActionLabel: "Main action",
+    setupPathLabel: "Setup path",
+    offeringsLabel: "Products and services",
+    previewHeroTemplate: "helps customers find trusted",
     greeting: {
       en: "Hi, I'm Kai. I can help you set up your business profile, build your Viliniu website, add products or services, and guide you through the platform.",
       es: "Hola, soy Kai. Puedo ayudarte a configurar tu perfil de negocio, crear tu sitio de Viliniu, agregar productos o servicios y guiarte por la plataforma.",
@@ -732,39 +742,40 @@ function createEmbedScript(origin: string): string {
   ];
 
   if (app === "carehia") {
-    guideSteps[0].title = "What kind of care setup are you preparing?";
-    guideSteps[0].helper = "This helps me guide the right onboarding path.";
-    guideSteps[0].placeholder = "Care agency";
-    guideSteps[0].choices = ["Care agency", "Independent caregiver", "Family care coordination"];
-    guideSteps[0].sample = "Care agency";
-    guideSteps[1].title = "What is the agency or care team called?";
-    guideSteps[1].helper = "I will use this for the workspace name and intro summary.";
-    guideSteps[1].placeholder = "Island Home Care";
-    guideSteps[1].sample = "Island Home Care";
-    guideSteps[2].title = "What care services do you provide?";
-    guideSteps[2].placeholder = "Home care agency";
-    guideSteps[2].choices = ["Home care agency", "Elder care", "Disability support", "Post-hospital care"];
-    guideSteps[2].sample = "home care agency";
-    guideSteps[3].title = "Which services should Kai help organize?";
-    guideSteps[3].helper = "List services, tasks, or care programs.";
-    guideSteps[3].placeholder = "Companionship, medication reminders, meal support, transport";
-    guideSteps[3].sample = "Companionship, medication reminders, meal support, transport";
-    guideSteps[4].title = "Where do you serve clients?";
-    guideSteps[4].helper = "This helps Kai prepare local care coverage and scheduling guidance.";
+    guideSteps[0].title = "Who are you looking for care for?";
+    guideSteps[0].helper = "This helps me understand whether you are arranging care for yourself or someone else.";
+    guideSteps[0].placeholder = "My parent";
+    guideSteps[0].choices = ["My parent", "Myself", "My partner", "A family member"];
+    guideSteps[0].sample = "My parent";
+    guideSteps[1].title = "What name should we use for this care search?";
+    guideSteps[1].helper = "Use the client name, family name, or a simple label for the search.";
+    guideSteps[1].placeholder = "Nana's care plan";
+    guideSteps[1].sample = "Nana's care plan";
+    guideSteps[2].title = "What type of care are you looking for?";
+    guideSteps[2].placeholder = "Elder care at home";
+    guideSteps[2].choices = ["Elder care at home", "Companionship", "Disability support", "Post-hospital support"];
+    guideSteps[2].sample = "elder care at home";
+    guideSteps[3].title = "What help is needed day to day?";
+    guideSteps[3].helper = "List care needs, tasks, or support preferences.";
+    guideSteps[3].placeholder = "Companionship, meal support, medication reminders, transport";
+    guideSteps[3].sample = "Companionship, meal support, medication reminders, transport";
+    guideSteps[4].title = "Where is care needed?";
+    guideSteps[4].helper = "This helps Kai guide location and caregiver availability.";
     guideSteps[4].placeholder = "Suva, Nausori, and nearby communities";
     guideSteps[4].sample = "Suva, Nausori, and nearby communities";
-    guideSteps[5].title = "How should families or clients contact you?";
-    guideSteps[5].placeholder = "care@example.com";
-    guideSteps[5].sample = "care@example.com";
-    guideSteps[6].title = "What should the Carehia experience feel like?";
-    guideSteps[6].helper = "Choose a tone for client-facing guidance.";
-    guideSteps[6].placeholder = "Calm, trusted, professional";
-    guideSteps[6].choices = ["Calm and trusted", "Warm and family-focused", "Clinical and professional", "Simple and accessible"];
-    guideSteps[6].sample = "calm, trusted, professional";
-    guideSteps[7].title = "What is the first action you want people to take?";
-    guideSteps[7].placeholder = "Book Care Consultation";
-    guideSteps[7].choices = ["Book Care Consultation", "Request Assessment", "Call Care Team", "Start Client Intake"];
-    guideSteps[7].sample = "Book Care Consultation";
+    guideSteps[5].title = "When do you need care?";
+    guideSteps[5].helper = "Share schedule, urgency, or preferred days.";
+    guideSteps[5].placeholder = "Weekday mornings, starting this month";
+    guideSteps[5].sample = "Weekday mornings, starting this month";
+    guideSteps[6].title = "What kind of caregiver would feel right?";
+    guideSteps[6].helper = "Choose a preference or type what matters most.";
+    guideSteps[6].placeholder = "Warm, patient, experienced with elder care";
+    guideSteps[6].choices = ["Warm and patient", "Experienced with elder care", "Can help with transport", "Female caregiver preferred"];
+    guideSteps[6].sample = "warm, patient, experienced with elder care";
+    guideSteps[7].title = "What would you like to do next?";
+    guideSteps[7].placeholder = "Browse matching caregivers";
+    guideSteps[7].choices = ["Browse matching caregivers", "Request a care consultation", "Save this care search", "Ask Kai a question"];
+    guideSteps[7].sample = "Browse matching caregivers";
   }
 
   var style = document.createElement("style");
@@ -856,6 +867,22 @@ function createEmbedScript(origin: string): string {
   function getDraftAnswers() {
     var model = getBusinessModel();
     var offerings = currentOfferingsList();
+    if (app === "carehia") {
+      return {
+        businessModel: "service_provider",
+        businessName: valueFor("businessName") || "Carehia care search",
+        businessType: valueFor("businessType") || "caregiver search",
+        products: [],
+        services: offerings,
+        location: valueFor("location"),
+        serviceArea: valueFor("location"),
+        contactInfo: valueFor("contactInfo"),
+        preferredBrandingColors: ["calm", "trusted", "accessible"],
+        businessStory: "Care is needed for " + (valueFor("businessModel") || "a family member") + ". Preferred caregiver qualities: " + (valueFor("brand") || "warm and experienced") + ".",
+        preferredCustomerAction: valueFor("preferredCustomerAction") || appProfile.finalActionFallback,
+        hasLogo: false
+      };
+    }
     return {
       businessModel: model,
       businessName: valueFor("businessName"),
@@ -867,7 +894,7 @@ function createEmbedScript(origin: string): string {
       contactInfo: valueFor("contactInfo"),
       preferredBrandingColors: splitList(valueFor("brand")),
       businessStory: valueFor("businessStory"),
-      preferredCustomerAction: valueFor("preferredCustomerAction") || "Request Quote",
+      preferredCustomerAction: valueFor("preferredCustomerAction") || appProfile.finalActionFallback,
       hasLogo: false
     };
   }
@@ -885,7 +912,9 @@ function createEmbedScript(origin: string): string {
     var heroTitle = document.createElement("h4");
     heroTitle.textContent = name;
     var heroText = document.createElement("p");
-    heroText.textContent = name + " helps customers find trusted " + type + " offerings. Setup path: " + modelLabel + ".";
+    heroText.textContent = app === "carehia"
+      ? name + " is a guided Carehia search for " + type + " in " + (valueFor("location") || "the local area") + "."
+      : name + " " + appProfile.previewHeroTemplate + " " + type + " offerings. Setup path: " + modelLabel + ".";
     hero.appendChild(heroTitle);
     hero.appendChild(heroText);
     card.appendChild(hero);
@@ -893,13 +922,15 @@ function createEmbedScript(origin: string): string {
     about.className = "kai-site-section";
     about.innerHTML = "<strong>About</strong>";
     var aboutText = document.createElement("p");
-    aboutText.textContent = valueFor("businessStory") || name + " is a " + type + " serving " + (valueFor("location") || "the local community") + ".";
+    aboutText.textContent = valueFor("businessStory") || (app === "carehia"
+      ? "Kai is collecting care needs, schedule, location, and caregiver preferences before matching starts."
+      : name + " is a " + type + " serving " + (valueFor("location") || "the local community") + ".");
     about.appendChild(aboutText);
     card.appendChild(about);
     if (offerings.length) {
       var section = document.createElement("div");
       section.className = "kai-site-section";
-      section.innerHTML = "<strong>Products and services</strong>";
+      section.innerHTML = "<strong>" + appProfile.offeringsLabel + "</strong>";
       var list = document.createElement("ul");
       offerings.forEach(function (item) {
         var li = document.createElement("li");
@@ -911,9 +942,11 @@ function createEmbedScript(origin: string): string {
     }
     var contact = document.createElement("div");
     contact.className = "kai-site-section";
-    contact.innerHTML = "<strong>Contact</strong>";
+    contact.innerHTML = "<strong>" + (app === "carehia" ? "Schedule and next step" : "Contact") + "</strong>";
     var contactText = document.createElement("p");
-    contactText.textContent = valueFor("contactInfo") || "Add phone, email, WhatsApp, or address.";
+    contactText.textContent = app === "carehia"
+      ? (valueFor("contactInfo") || "Add timing, urgency, or contact details.")
+      : (valueFor("contactInfo") || "Add phone, email, WhatsApp, or address.");
     contact.appendChild(contactText);
     card.appendChild(contact);
     previewContent.appendChild(card);
@@ -930,7 +963,11 @@ function createEmbedScript(origin: string): string {
     var step = guideSteps[guideStepIndex];
     if (step.id === "offerings") {
       var model = getBusinessModel();
-      if (model === "service_provider") {
+      if (app === "carehia") {
+        step.title = "What help is needed day to day?";
+        step.helper = "List care needs, tasks, or support preferences.";
+        step.placeholder = "Companionship, meal support, medication reminders, transport";
+      } else if (model === "service_provider") {
         step.title = "What services do you offer?";
         step.helper = "List services customers can book or request quotes for.";
         step.placeholder = "House cleaning, repairs, consultations";
@@ -945,7 +982,7 @@ function createEmbedScript(origin: string): string {
       }
     }
     if (step.id === "preferredCustomerAction") {
-      step.placeholder = getBusinessModel() === "product_seller" ? "Order Now" : "Request Quote";
+      step.placeholder = app === "carehia" ? "Browse matching caregivers" : getBusinessModel() === "product_seller" ? "Order Now" : "Request Quote";
     }
     stepLabel.textContent = step.label;
     stepTitle.textContent = step.title;
@@ -980,7 +1017,7 @@ function createEmbedScript(origin: string): string {
     var next = document.createElement("button");
     next.type = "button";
     next.className = "kai-primary";
-    next.textContent = guideStepIndex === guideSteps.length - 1 ? "Generate website preview" : "Next";
+    next.textContent = guideStepIndex === guideSteps.length - 1 ? (app === "carehia" ? "Generate care preview" : "Generate website preview") : "Next";
     next.addEventListener("click", function () {
       var value = inputNode.value.trim();
       if (!value) {
@@ -1042,12 +1079,12 @@ function createEmbedScript(origin: string): string {
     card.appendChild(hero);
 
     [
-      ["Setup path", draft.businessModel === "service_provider" ? "Service provider" : draft.businessModel === "hybrid" ? "Hybrid business" : "Product seller"],
+      [appProfile.setupPathLabel, app === "carehia" ? draft.businessType : draft.businessModel === "service_provider" ? "Service provider" : draft.businessModel === "hybrid" ? "Hybrid business" : "Product seller"],
       ["About", draft.about],
       ["Products", draft.products && draft.products.join(", ")],
-      ["Services", draft.services && draft.services.join(", ")],
-      ["Contact", draft.contactInfo],
-      ["Main action", draft.ctaStyle],
+      [appProfile.offeringsLabel, draft.services && draft.services.join(", ")],
+      [app === "carehia" ? "Location and timing" : "Contact", draft.contactInfo],
+      [appProfile.finalActionLabel, draft.ctaStyle],
       ["SEO title", draft.seo && draft.seo.title],
       ["SEO description", draft.seo && draft.seo.description],
       ["Logo idea", draft.logoPrompt]
@@ -1135,7 +1172,7 @@ function createEmbedScript(origin: string): string {
       stepHelper.textContent = "Kai could not create the website preview right now.";
     } finally {
       button.disabled = false;
-      button.textContent = "Generate website preview";
+      button.textContent = app === "carehia" ? "Generate care preview" : "Generate website preview";
     }
   }
 
