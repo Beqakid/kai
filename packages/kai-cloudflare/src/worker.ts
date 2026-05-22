@@ -617,6 +617,8 @@ function createEmbedScript(origin: string): string {
 
   var appProfiles = ${JSON.stringify(kaiEmbedAppProfiles)};
   var appProfile = appProfiles[app] || appProfiles.viliniu;
+  var avatarUrl = document.currentScript && document.currentScript.dataset.avatarUrl || appProfile.paAvatarUrl || "";
+  var voiceScaffoldEnabled = (document.currentScript && document.currentScript.dataset.voiceScaffold === "true") || !!appProfile.voiceScaffoldEnabled;
 
   var greetings = {
     en: appProfile.greeting.en,
@@ -630,6 +632,7 @@ function createEmbedScript(origin: string): string {
 
   var style = document.createElement("style");
   style.textContent = ".kai-embed{position:fixed;right:16px;bottom:16px;z-index:9999;font-family:Inter,system-ui,sans-serif;color:#0f172a}.kai-embed button,.kai-embed input,.kai-embed select,.kai-embed textarea{font:inherit}.kai-embed-launch{display:flex;align-items:center;gap:10px;border:0;border-radius:999px;background:#0f766e;color:#fff;font-weight:800;box-shadow:0 16px 40px rgba(15,23,42,.28);cursor:pointer;padding:10px 14px 10px 10px}.kai-embed-face{display:flex;align-items:center;justify-content:center;width:38px;height:38px;border-radius:999px;background:#ccfbf1;color:#0f766e;font-weight:900}.kai-embed-panel{display:none;width:min(760px,calc(100vw - 32px));height:min(680px,calc(100vh - 32px));overflow:hidden;flex-direction:column;border:1px solid #cbd5e1;border-radius:10px;background:#f8fafc;box-shadow:0 24px 80px rgba(15,23,42,.3)}.kai-embed[data-open=true] .kai-embed-panel{display:flex}.kai-embed[data-open=true] .kai-embed-launch{display:none}.kai-embed-head{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:14px 16px;border-bottom:1px solid #e2e8f0;background:#fff}.kai-embed-title{display:flex;align-items:center;gap:10px}.kai-embed-head h2,.kai-embed-head p{margin:0}.kai-embed-head h2{font-size:16px;line-height:20px}.kai-embed-head p{font-size:12px;line-height:18px;color:#64748b}.kai-embed-actions{display:flex;align-items:center;gap:8px}.kai-embed-actions select,.kai-embed-actions button{height:34px;border:1px solid #cbd5e1;border-radius:7px;background:#fff;color:#334155}.kai-embed-actions select{max-width:132px;padding:0 8px}.kai-embed-actions button{min-width:34px;cursor:pointer}.kai-embed-voice{opacity:.55}.kai-embed-body{display:grid;grid-template-columns:minmax(0,1.05fr) minmax(260px,.95fr);gap:12px;min-height:0;flex:1;padding:12px}.kai-guide{display:flex;min-width:0;min-height:0;flex-direction:column;gap:12px}.kai-card,.kai-preview-card,.kai-chat-box{border:1px solid #e2e8f0;border-radius:10px;background:#fff}.kai-card{padding:16px}.kai-pa-row{display:flex;align-items:flex-start;gap:12px}.kai-pa-avatar{display:flex;align-items:center;justify-content:center;width:52px;height:52px;flex:0 0 auto;border-radius:16px;background:linear-gradient(135deg,#0f766e,#14b8a6);color:#fff;font-size:22px;font-weight:900;box-shadow:0 12px 24px rgba(15,118,110,.2)}.kai-step-label{margin:0 0 6px;color:#0f766e;font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.08em}.kai-step-title{margin:0;color:#0f172a;font-size:22px;line-height:28px}.kai-step-helper{margin:8px 0 0;color:#475569;font-size:14px;line-height:21px}.kai-progress{height:8px;border-radius:999px;background:#e2e8f0;overflow:hidden}.kai-progress span{display:block;height:100%;border-radius:999px;background:#0f766e;transition:width .2s ease}.kai-answer{display:grid;gap:10px}.kai-answer input,.kai-answer textarea{box-sizing:border-box;width:100%;border:1px solid #cbd5e1;border-radius:8px;background:#fff;color:#0f172a;padding:10px}.kai-answer textarea{min-height:86px;resize:vertical}.kai-answer input:focus,.kai-answer textarea:focus{border-color:#0f766e;outline:none;box-shadow:0 0 0 3px rgba(15,118,110,.12)}.kai-choice-row,.kai-nav-row,.kai-preview-actions{display:flex;flex-wrap:wrap;gap:8px}.kai-choice{border:1px solid #cbd5e1;border-radius:999px;background:#fff;color:#334155;padding:8px 10px;font-size:13px;cursor:pointer}.kai-primary,.kai-secondary{border-radius:8px;padding:10px 12px;font-size:14px;font-weight:750;cursor:pointer}.kai-primary{border:0;background:#0f766e;color:#fff}.kai-secondary{border:1px solid #cbd5e1;background:#fff;color:#334155}.kai-primary:disabled{cursor:not-allowed;background:#cbd5e1;color:#64748b}.kai-preview-card{display:flex;min-width:0;min-height:0;flex-direction:column;overflow:hidden}.kai-preview-head{padding:14px 16px;border-bottom:1px solid #e2e8f0;background:#fff}.kai-preview-head h3,.kai-preview-head p{margin:0}.kai-preview-head h3{font-size:15px}.kai-preview-head p{margin-top:4px;color:#64748b;font-size:12px}.kai-preview-content{display:grid;gap:10px;overflow:auto;padding:14px}.kai-preview-empty{display:flex;min-height:220px;align-items:center;justify-content:center;text-align:center;color:#64748b;font-size:14px;line-height:22px}.kai-site-card{border:1px solid #dbeafe;border-radius:10px;background:#f8fafc;overflow:hidden}.kai-site-hero{padding:18px;background:#0f766e;color:#fff}.kai-site-hero h4{margin:0;font-size:24px;line-height:30px}.kai-site-hero p{margin:8px 0 0;color:#ccfbf1}.kai-site-section{padding:14px;border-top:1px solid #e2e8f0}.kai-site-section strong{display:block;margin-bottom:6px;color:#0f172a}.kai-site-section p,.kai-site-section ul{margin:0;color:#334155;font-size:13px;line-height:20px}.kai-chat-box{max-height:210px;overflow:hidden}.kai-chat-toggle{display:block;padding:10px 12px;cursor:pointer;color:#334155;font-size:13px;font-weight:750}.kai-embed-messages{display:flex;max-height:110px;min-height:80px;flex-direction:column;gap:8px;overflow-y:auto;padding:10px;background:#f8fafc}.kai-embed-msg{max-width:90%;border-radius:8px;padding:9px 10px;font-size:13px;line-height:18px;white-space:pre-wrap}.kai-embed-assistant{margin-right:auto;border:1px solid #e2e8f0;background:#fff;color:#334155}.kai-embed-user{margin-left:auto;background:#0f766e;color:#fff}.kai-embed-form{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;border-top:1px solid #e2e8f0;padding:10px;background:#fff}.kai-embed-form input,.kai-embed-form button{min-height:36px;border-radius:7px}.kai-embed-form input{min-width:0;border:1px solid #cbd5e1;padding:0 9px;color:#0f172a}.kai-embed-form button{border:0;padding:0 12px;background:#0f766e;color:#fff;cursor:pointer;font-weight:700}@media(max-width:720px){.kai-embed{right:12px;bottom:12px}.kai-embed-panel{width:calc(100vw - 24px);height:min(720px,calc(100vh - 24px))}.kai-embed-body{grid-template-columns:1fr;overflow:auto}.kai-guide{min-height:auto}.kai-preview-card{min-height:260px}.kai-step-title{font-size:20px;line-height:26px}}";
+  style.textContent += ".kai-embed-face,.kai-pa-avatar{overflow:hidden}.kai-embed-face img,.kai-pa-avatar img{display:block;width:100%;height:100%;object-fit:cover}.kai-pa-avatar{width:66px;height:66px;border-radius:18px}.kai-embed-voice{display:inline-flex;align-items:center;gap:6px;padding:0 9px!important;border-color:#99f6e4!important;background:#f0fdfa!important;color:#0f766e!important;font-weight:850;opacity:1!important}.kai-embed-voice[data-active=true]{background:#0f766e!important;color:#fff!important}.kai-embed-voice-dot{width:7px;height:7px;border-radius:999px;background:currentColor;box-shadow:0 0 0 4px rgba(20,184,166,.14)}.kai-voice-note{border:1px solid #99f6e4;border-radius:9px;background:#f0fdfa;color:#115e59;padding:9px 10px;font-size:12px;line-height:17px}.kai-voice-note[hidden]{display:none}";
   document.head.appendChild(style);
 
   var root = document.createElement("div");
@@ -657,6 +660,37 @@ function createEmbedScript(origin: string): string {
   var progressBar = root.querySelector(".kai-progress span");
   var answerArea = root.querySelector(".kai-answer");
   var previewContent = root.querySelector(".kai-preview-content");
+  var voiceButton = root.querySelector(".kai-embed-voice");
+  var guideCard = root.querySelector(".kai-card");
+
+  if (avatarUrl) {
+    root.querySelectorAll(".kai-embed-face,.kai-pa-avatar").forEach(function (face) {
+      face.innerHTML = '<img alt="Kai personal assistant" src="' + avatarUrl + '" />';
+    });
+  }
+
+  var voiceNote = document.createElement("div");
+  voiceNote.className = "kai-voice-note";
+  voiceNote.hidden = true;
+  voiceNote.textContent = "Voice scaffold is ready. Push-to-talk, transcript, consent, mute, and stop controls come next before audio is recorded.";
+  if (guideCard && guideCard.parentNode) {
+    guideCard.parentNode.insertBefore(voiceNote, guideCard.nextSibling);
+  }
+
+  if (voiceButton && voiceScaffoldEnabled) {
+    voiceButton.disabled = false;
+    voiceButton.innerHTML = '<span class="kai-embed-voice-dot"></span><span>' + (appProfile.voiceScaffoldLabel || "Mic") + '</span>';
+    voiceButton.setAttribute("aria-label", "Open Kai voice scaffold");
+    voiceButton.setAttribute("title", "Voice scaffold");
+    voiceButton.addEventListener("click", function () {
+      var active = voiceButton.getAttribute("data-active") === "true";
+      voiceButton.setAttribute("data-active", active ? "false" : "true");
+      voiceNote.hidden = active;
+      if (!active) {
+        addMessage("assistant", "Voice mode scaffold is ready. I am not recording audio yet. Next we add push-to-talk, consent, live transcript, mute, stop, and speech provider wiring.");
+      }
+    });
+  }
 
   function pagePayload() {
     return { path: window.location.pathname, url: window.location.href, title: document.title };

@@ -12,6 +12,9 @@ export type KaiEmbedGuideStep = {
 export type KaiEmbedAppProfile = {
   app: string;
   platformName: string;
+  paAvatarUrl?: string;
+  voiceScaffoldEnabled?: boolean;
+  voiceScaffoldLabel?: string;
   supportedRoles: string[];
   defaultRole: string;
   approvalRequiredFor: string[];
@@ -126,12 +129,12 @@ const carehiaGuideSteps: KaiEmbedGuideStep[] = [
   {
     id: "businessModel",
     label: "Step 1 of 8",
-    title: "Who are you looking for care for?",
-    helper: "This helps me understand whether you are arranging care for yourself or someone else.",
+    title: "Are you looking for care or applying as a caregiver?",
+    helper: "I can help clients and families find care, or help caregivers understand the Carehia path.",
     input: "choice-text",
-    placeholder: "My parent",
-    choices: ["My parent", "Myself", "My partner", "A family member"],
-    sample: "My parent",
+    placeholder: "Find care for my parent",
+    choices: ["Find care for my parent", "Find care for myself", "Apply as a caregiver", "Manage care for a client"],
+    sample: "Find care for my parent",
   },
   {
     id: "businessName",
@@ -282,6 +285,9 @@ export const kaiEmbedAppProfiles: Record<string, KaiEmbedAppProfile> = {
   carehia: {
     app: "carehia",
     platformName: "Carehia",
+    paAvatarUrl: "/assets/kai-carehia-pa.png",
+    voiceScaffoldEnabled: true,
+    voiceScaffoldLabel: "Talk with Kai",
     supportedRoles: [
       "coach",
       "onboarding_wizard",
