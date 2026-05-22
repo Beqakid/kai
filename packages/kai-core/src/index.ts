@@ -4,6 +4,46 @@ export type KaiGuidanceMode = "GUIDE_MODE" | "ASSIST_MODE" | "AGENT_MODE";
 
 export type KaiAutonomy = "GUIDE_ONLY";
 
+export type KaiOperationsRole =
+  | "coach"
+  | "onboarding_wizard"
+  | "sales_assistant"
+  | "marketing_assistant"
+  | "personal_assistant"
+  | "customer_support_assistant"
+  | "it_support_assistant"
+  | "accounting_assistant"
+  | "admin_assistant"
+  | "workflow_guide"
+  | "future_agent_operator";
+
+export type KaiActionSensitivity = "safe_suggestion" | "approval_required" | "human_only" | "disallowed";
+
+export type KaiApprovalRequirement =
+  | "none"
+  | "user_confirmation"
+  | "manager_approval"
+  | "admin_approval"
+  | "human_operator_required";
+
+export type KaiEscalationTarget =
+  | "app_admin"
+  | "human_support"
+  | "technical_support"
+  | "finance_reviewer"
+  | "compliance_reviewer"
+  | "emergency_or_professional_service";
+
+export type KaiBehaviorStep =
+  | "understand_context"
+  | "guide_user"
+  | "suggest_next_steps"
+  | "assist_with_preparation"
+  | "request_approval_for_sensitive_actions"
+  | "execute_only_approved_safe_actions"
+  | "log_important_actions"
+  | "escalate_when_needed";
+
 export interface KaiFeatureFlags {
   aiCoachEnabled: boolean;
   voiceEnabled: boolean;
@@ -31,6 +71,14 @@ export interface KaiPermissionSet {
   canNavigate?: boolean;
   canViewAdminGuidance?: boolean;
   canViewDeliveryGuidance?: boolean;
+  canUseSalesGuidance?: boolean;
+  canUseMarketingGuidance?: boolean;
+  canUseCustomerSupportGuidance?: boolean;
+  canUseITSupportGuidance?: boolean;
+  canUseAccountingGuidance?: boolean;
+  canUseAdminGuidance?: boolean;
+  canPrepareSensitiveAction?: boolean;
+  canExecuteApprovedSafeAction?: boolean;
 }
 
 export interface KaiPageContext {
@@ -41,6 +89,19 @@ export interface KaiPageContext {
   pageIntent?: string;
 }
 
+export interface KaiOperationalContext {
+  app: string;
+  appSurface?: KaiPageContext["appSurface"];
+  userId?: string;
+  userRole?: string;
+  activeKaiRole: KaiOperationsRole;
+  userGoal?: string;
+  pageContext?: KaiPageContext;
+  allowedToolIds: string[];
+  approvalRequiredFor: string[];
+  escalationTargets: KaiEscalationTarget[];
+}
+
 export interface KaiWorkflowRegistration {
   id: string;
   title: string;
@@ -49,6 +110,9 @@ export interface KaiWorkflowRegistration {
 export interface KaiActionRegistration {
   id: string;
   permission: keyof KaiPermissionSet;
+  sensitivity?: KaiActionSensitivity;
+  approvalRequirement?: KaiApprovalRequirement;
+  toolId?: string;
 }
 
 export interface KaiKnowledgeSourceRegistration {
@@ -66,6 +130,8 @@ export interface KaiRegistrationConfig {
   userId?: string;
   userRole?: string;
   permissions: KaiPermissionSet;
+  supportedRoles?: KaiOperationsRole[];
+  defaultRole?: KaiOperationsRole;
   workflows: KaiWorkflowRegistration[];
   actions: KaiActionRegistration[];
   knowledgeSources: KaiKnowledgeSourceRegistration[];
@@ -78,6 +144,8 @@ export interface KaiRegistrationConfig {
 export interface RegisteredKaiApp extends KaiRegistrationConfig {
   guidanceMode: "GUIDE_MODE";
   featureFlags: KaiFeatureFlags;
+  supportedRoles: KaiOperationsRole[];
+  defaultRole: KaiOperationsRole;
 }
 
 export interface KaiCoachMessage {
@@ -92,6 +160,11 @@ export interface KaiCoachRequest {
   sessionId: string;
   userId?: string;
   userRole?: string;
+  activeKaiRole?: KaiOperationsRole;
+  userGoal?: string;
+  allowedToolIds?: string[];
+  approvalRequiredFor?: string[];
+  escalationTargets?: KaiEscalationTarget[];
   permissions?: KaiPermissionSet;
   pageContext?: KaiPageContext;
   language: KaiLanguageCode;
@@ -107,7 +180,43 @@ export interface KaiCoachResponse {
   suggestedActions?: string[];
   workflowId?: string;
   knowledgeSourceIds?: string[];
+  needsApproval?: boolean;
+  approvalReason?: string;
+  escalationTarget?: KaiEscalationTarget;
 }
+
+export const kaiOperationsBehaviorModel: KaiBehaviorStep[] = [
+  "understand_context",
+  "guide_user",
+  "suggest_next_steps",
+  "assist_with_preparation",
+  "request_approval_for_sensitive_actions",
+  "execute_only_approved_safe_actions",
+  "log_important_actions",
+  "escalate_when_needed",
+];
+
+export const kaiOperationsRoles: KaiOperationsRole[] = [
+  "coach",
+  "onboarding_wizard",
+  "sales_assistant",
+  "marketing_assistant",
+  "personal_assistant",
+  "customer_support_assistant",
+  "it_support_assistant",
+  "accounting_assistant",
+  "admin_assistant",
+  "workflow_guide",
+  "future_agent_operator",
+];
+
+export const kaiOperationsLayer = {
+  purpose: "platform_wide_ai_operations_layer",
+  behaviorModel: kaiOperationsBehaviorModel,
+  roles: kaiOperationsRoles,
+  defaultAutonomy: "GUIDE_ONLY",
+  agentOperatorEnabled: false,
+} as const;
 
 export interface KaiModelProvider {
   generateCoachResponse(request: KaiCoachRequest): Promise<KaiCoachResponse>;
@@ -161,6 +270,8 @@ export function registerKai(config: KaiRegistrationConfig): RegisteredKaiApp {
   return {
     ...config,
     guidanceMode: "GUIDE_MODE",
+    supportedRoles: config.supportedRoles ?? ["coach", "onboarding_wizard", "workflow_guide"],
+    defaultRole: config.defaultRole ?? "coach",
     featureFlags: {
       ...createDefaultFeatureFlags(),
       ...config.featureFlags,
@@ -178,17 +289,26 @@ export function createKaiSystemPrompt(
   assistantName = "Kai",
   pageContext?: KaiPageContext,
   permissions?: KaiPermissionSet,
+  operationalContext?: Partial<KaiOperationalContext>,
 ): string {
   return [
-    `You are ${assistantName}, an AI coach for ${appName}.`,
-    "You guide users, explain workflows, and draft helpful content.",
-    "You are not a chatbot, autonomous agent, legal adviser, medical adviser, or financial adviser.",
+    `You are ${assistantName}, a multi-role AI Operations Assistant for ${appName}.`,
+    "You are a platform-wide AI operations layer, not a chatbot.",
+    `Your active role is ${operationalContext?.activeKaiRole ?? "coach"}.`,
+    operationalContext?.userRole ? `The active user role is ${operationalContext.userRole}.` : "The active user role is unknown.",
+    operationalContext?.userGoal ? `The user's current goal appears to be: ${operationalContext.userGoal}.` : "Infer the user's goal from the page, message, workflow, and available context.",
+    "Always follow this behavior model: understand context, guide the user, suggest next steps, assist with preparation, request approval for sensitive actions, execute only approved safe actions, log important actions, and escalate when needed.",
+    "You may act as coach, onboarding wizard, sales assistant, marketing assistant, personal assistant, customer support assistant, IT support assistant, accounting assistant, admin assistant, workflow guide, or future agent operator only when that role is enabled and permissioned.",
+    "You are not a final legal adviser, medical adviser, or financial adviser.",
     "Phase 2 is still guide-only. Do not claim that you completed actions in the app.",
     pageContext?.appSurface
       ? `The user is on the ${pageContext.appSurface} surface at path ${pageContext.path ?? "unknown"}.`
       : "The user's current page is unknown.",
     permissions ? `Allowed Kai permissions: ${Object.entries(permissions).filter(([, allowed]) => allowed).map(([key]) => key).join(", ") || "public guidance only"}.` : "Assume public guidance only unless permissions are provided.",
-    "For destructive, permission, payment, email, schema, or deployment requests, explain that approval and human action are required.",
+    operationalContext?.allowedToolIds?.length ? `Allowed tool IDs: ${operationalContext.allowedToolIds.join(", ")}.` : "No direct tools are available unless explicitly provided.",
+    operationalContext?.approvalRequiredFor?.length ? `Approval is required for: ${operationalContext.approvalRequiredFor.join(", ")}.` : "Sensitive actions require approval by default.",
+    operationalContext?.escalationTargets?.length ? `Escalation targets: ${operationalContext.escalationTargets.join(", ")}.` : "Escalate to a human when the request is unsafe, unclear, urgent, regulated, or outside allowed permissions.",
+    "For destructive, permission, payment, email, schema, deployment, caregiver approval, medical, legal, financial, or production-changing requests, ask for approval or escalate instead of acting silently.",
   ].join(" ");
 }
 
@@ -245,6 +365,15 @@ export class OpenAIKaiModelProvider implements KaiModelProvider {
               request.assistantName,
               request.pageContext,
               request.permissions,
+              {
+                app: request.app,
+                userRole: request.userRole,
+                activeKaiRole: request.activeKaiRole ?? "coach",
+                userGoal: request.userGoal,
+                allowedToolIds: request.allowedToolIds ?? [],
+                approvalRequiredFor: request.approvalRequiredFor ?? [],
+                escalationTargets: request.escalationTargets ?? [],
+              },
             ),
           },
           ...(request.knowledge ?? []).map((content) => ({ role: "system", content })),

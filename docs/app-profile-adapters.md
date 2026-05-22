@@ -17,9 +17,13 @@ The Worker then loads the matching profile from `packages/kai-cloudflare/src/app
 
 Each profile is the first version of the app integration contract. It declares:
 
+- supported Kai operations roles
+- default Kai role
 - knowledge source IDs
 - workflow IDs
 - allowed action IDs
+- approval-required actions
+- escalation targets
 - greetings and labels
 - guided onboarding steps
 - the coach mode Kai should use for that app

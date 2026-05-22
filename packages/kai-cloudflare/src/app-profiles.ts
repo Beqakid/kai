@@ -12,6 +12,10 @@ export type KaiEmbedGuideStep = {
 export type KaiEmbedAppProfile = {
   app: string;
   platformName: string;
+  supportedRoles: string[];
+  defaultRole: string;
+  approvalRequiredFor: string[];
+  escalationTargets: string[];
   knowledgeSourceIds: string[];
   workflowIds: string[];
   allowedActionIds: string[];
@@ -211,6 +215,18 @@ export const kaiEmbedAppProfiles: Record<string, KaiEmbedAppProfile> = {
   viliniu: {
     app: "viliniu",
     platformName: "Viliniu",
+    supportedRoles: [
+      "coach",
+      "onboarding_wizard",
+      "sales_assistant",
+      "marketing_assistant",
+      "customer_support_assistant",
+      "admin_assistant",
+      "workflow_guide",
+    ],
+    defaultRole: "onboarding_wizard",
+    approvalRequiredFor: ["publish_website", "submit_form", "send_email", "process_payment", "change_permissions"],
+    escalationTargets: ["app_admin", "human_support", "finance_reviewer"],
     knowledgeSourceIds: [
       "viliniu_overview",
       "viliniu_onboarding",
@@ -266,6 +282,17 @@ export const kaiEmbedAppProfiles: Record<string, KaiEmbedAppProfile> = {
   carehia: {
     app: "carehia",
     platformName: "Carehia",
+    supportedRoles: [
+      "coach",
+      "onboarding_wizard",
+      "personal_assistant",
+      "customer_support_assistant",
+      "admin_assistant",
+      "workflow_guide",
+    ],
+    defaultRole: "onboarding_wizard",
+    approvalRequiredFor: ["save_care_search", "book_caregiver", "contact_caregiver", "process_payment"],
+    escalationTargets: ["human_support", "app_admin", "emergency_or_professional_service"],
     knowledgeSourceIds: [
       "carehia_overview",
       "carehia_finding_caregivers",
