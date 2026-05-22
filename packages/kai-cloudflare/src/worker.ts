@@ -737,6 +737,10 @@ function createEmbedScript(origin: string): string {
     return splitList(valueFor("offerings"));
   }
 
+  function isCaregiverPath() {
+    return appProfile.coachMode === "caregiver_search" && valueFor("businessModel").toLowerCase().indexOf("caregiver") >= 0;
+  }
+
   function getBusinessModel() {
     if (appProfile.coachMode === "caregiver_search") return appProfile.defaultBusinessModel;
     var value = valueFor("businessModel").toLowerCase();
@@ -758,6 +762,22 @@ function createEmbedScript(origin: string): string {
     var model = getBusinessModel();
     var offerings = currentOfferingsList();
     if (appProfile.coachMode === "caregiver_search") {
+      if (isCaregiverPath()) {
+        return {
+          businessModel: "service_provider",
+          businessName: valueFor("businessName") || "Caregiver onboarding profile",
+          businessType: valueFor("businessType") || "caregiver applicant",
+          products: [],
+          services: offerings,
+          location: valueFor("location"),
+          serviceArea: valueFor("location"),
+          contactInfo: valueFor("contactInfo"),
+          preferredBrandingColors: ["calm", "professional", "trusted"],
+          businessStory: "Caregiver strengths and preferences: " + (valueFor("brand") || "warm, reliable, and experienced") + ".",
+          preferredCustomerAction: valueFor("preferredCustomerAction") || "Continue caregiver onboarding",
+          hasLogo: false
+        };
+      }
       return {
         businessModel: "service_provider",
         businessName: valueFor("businessName") || "Carehia care search",
@@ -851,9 +871,56 @@ function createEmbedScript(origin: string): string {
 
   function renderGuideStep() {
     var step = guideSteps[guideStepIndex];
+    if (appProfile.coachMode === "caregiver_search" && isCaregiverPath()) {
+      if (step.id === "businessName") {
+        step.title = "What name should we use for your caregiver profile?";
+        step.helper = "Use your name or a profile label for this onboarding demo.";
+        step.placeholder = "Ana's caregiver profile";
+        step.sample = "Ana's caregiver profile";
+      }
+      if (step.id === "businessType") {
+        step.title = "What type of care work do you want to offer?";
+        step.helper = "Choose one, or type the care role that fits you.";
+        step.placeholder = "Elder care caregiver";
+        step.choices = ["Elder care caregiver", "Companion caregiver", "Disability support caregiver", "Post-hospital support caregiver"];
+        step.sample = "elder care caregiver";
+      }
+      if (step.id === "offerings") {
+        step.title = "What care skills or services can you provide?";
+        step.helper = "List skills, tasks, or care experience. A few words is enough.";
+        step.placeholder = "Companionship, meal support, mobility help, medication reminders";
+        step.sample = "Companionship, meal support, mobility help, medication reminders";
+      }
+      if (step.id === "location") {
+        step.title = "Where can you provide care?";
+        step.helper = "Share your city, service area, or whether you can travel.";
+        step.placeholder = "Suva, Nausori, and nearby communities";
+        step.sample = "Suva, Nausori, and nearby communities";
+      }
+      if (step.id === "contactInfo") {
+        step.title = "When are you usually available?";
+        step.helper = "Share days, shifts, or timing preferences.";
+        step.placeholder = "Weekday mornings and some weekends";
+        step.sample = "Weekday mornings and some weekends";
+      }
+      if (step.id === "brand") {
+        step.title = "What should families know about your care style?";
+        step.helper = "Choose a strength or type what makes your care feel trustworthy.";
+        step.placeholder = "Patient, reliable, experienced with elders";
+        step.choices = ["Patient and reliable", "Experienced with elder care", "Good with transport", "Warm companion care"];
+        step.sample = "patient, reliable, experienced with elders";
+      }
+      if (step.id === "preferredCustomerAction") {
+        step.title = "What would you like to do next?";
+        step.helper = "This becomes the next recommended Carehia action.";
+        step.placeholder = "Continue caregiver onboarding";
+        step.choices = ["Continue caregiver onboarding", "Prepare my caregiver profile", "Ask Kai about requirements", "Save this draft"];
+        step.sample = "Continue caregiver onboarding";
+      }
+    }
     if (step.id === "offerings") {
       var model = getBusinessModel();
-      if (appProfile.coachMode === "caregiver_search") {
+      if (appProfile.coachMode === "caregiver_search" && !isCaregiverPath()) {
         step.title = "What help is needed day to day?";
         step.helper = "List care needs, tasks, or support preferences.";
         step.placeholder = "Companionship, meal support, medication reminders, transport";
@@ -872,7 +939,9 @@ function createEmbedScript(origin: string): string {
       }
     }
     if (step.id === "preferredCustomerAction") {
-      step.placeholder = appProfile.coachMode === "caregiver_search" ? "Browse matching caregivers" : getBusinessModel() === "product_seller" ? "Order Now" : "Request Quote";
+      step.placeholder = appProfile.coachMode === "caregiver_search"
+        ? isCaregiverPath() ? "Continue caregiver onboarding" : "Browse matching caregivers"
+        : getBusinessModel() === "product_seller" ? "Order Now" : "Request Quote";
     }
     stepLabel.textContent = step.label;
     stepTitle.textContent = step.title;
