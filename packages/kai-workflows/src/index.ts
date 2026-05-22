@@ -14,6 +14,43 @@ export interface KaiWorkflowDefinition {
 
 export const kaiWorkflowRegistry: KaiWorkflowDefinition[] = [
   {
+    id: "carehia_caregiver_search",
+    title: "Carehia caregiver search onboarding",
+    permissions: ["canUseWorkflows", "canReadKnowledge"],
+    completionState: "not_started",
+    steps: [
+      { id: "recipient", title: "Identify who needs care", prompt: "Ask whether care is for the user, a parent, partner, or family member." },
+      { id: "needs", title: "Describe care needs", prompt: "Collect daily support tasks, care type, and important preferences." },
+      { id: "location", title: "Confirm location and timing", prompt: "Capture where care is needed, schedule, urgency, and service area." },
+      { id: "preferences", title: "Capture caregiver preferences", prompt: "Ask what caregiver qualities would help the family feel comfortable." },
+      { id: "preview", title: "Generate care-search preview", prompt: "Summarize the care search without choosing or approving a caregiver." },
+      { id: "handoff", title: "Suggest next Carehia step", prompt: "Offer browsing caregivers, requesting a consultation, or saving the search." },
+    ],
+  },
+  {
+    id: "carehia_describe_care_needs",
+    title: "Describe care needs",
+    permissions: ["canUseWorkflows", "canSuggestFormContent"],
+    completionState: "not_started",
+    steps: [
+      { id: "care_type", title: "Choose care type" },
+      { id: "daily_tasks", title: "List daily support tasks" },
+      { id: "schedule", title: "Describe schedule and urgency" },
+      { id: "summary", title: "Prepare a plain-language care summary" },
+    ],
+  },
+  {
+    id: "carehia_prepare_family_handoff",
+    title: "Prepare family handoff",
+    permissions: ["canUseWorkflows", "canReadKnowledge"],
+    completionState: "not_started",
+    steps: [
+      { id: "review", title: "Review the care-search preview" },
+      { id: "boundaries", title: "Explain safety and decision boundaries" },
+      { id: "next_action", title: "Choose the next Carehia action" },
+    ],
+  },
+  {
     id: "vendor_onboarding",
     title: "Vendor onboarding",
     permissions: ["canUseWorkflows"],

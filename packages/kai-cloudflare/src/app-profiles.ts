@@ -12,6 +12,9 @@ export type KaiEmbedGuideStep = {
 export type KaiEmbedAppProfile = {
   app: string;
   platformName: string;
+  knowledgeSourceIds: string[];
+  workflowIds: string[];
+  allowedActionIds: string[];
   launchText: string;
   subtitle: string;
   previewTitle: string;
@@ -208,6 +211,34 @@ export const kaiEmbedAppProfiles: Record<string, KaiEmbedAppProfile> = {
   viliniu: {
     app: "viliniu",
     platformName: "Viliniu",
+    knowledgeSourceIds: [
+      "viliniu_overview",
+      "viliniu_onboarding",
+      "viliniu_faq",
+      "viliniu_website_builder",
+      "viliniu_privacy_summary",
+      "viliniu_terms_summary",
+    ],
+    workflowIds: [
+      "vendor_onboarding",
+      "service_provider_onboarding",
+      "create_business_profile",
+      "add_product_listing",
+      "add_service_listing",
+      "ai_website_setup",
+      "explain_marketplace_model",
+    ],
+    allowedActionIds: [
+      "navigate_to_page",
+      "explain_current_page",
+      "suggest_form_content",
+      "show_workflow_steps",
+      "generate_website_draft",
+      "classify_business_model",
+      "generate_logo_draft",
+      "generate_product_image_draft",
+      "generate_service_image_draft",
+    ],
     launchText: "Start with Kai",
     subtitle: "Personal setup assistant",
     previewTitle: "Website preview",
@@ -235,6 +266,25 @@ export const kaiEmbedAppProfiles: Record<string, KaiEmbedAppProfile> = {
   carehia: {
     app: "carehia",
     platformName: "Carehia",
+    knowledgeSourceIds: [
+      "carehia_overview",
+      "carehia_finding_caregivers",
+      "carehia_onboarding",
+      "carehia_safety_boundaries",
+      "carehia_faq",
+      "carehia_privacy_summary",
+    ],
+    workflowIds: [
+      "carehia_caregiver_search",
+      "carehia_describe_care_needs",
+      "carehia_prepare_family_handoff",
+    ],
+    allowedActionIds: [
+      "navigate_to_page",
+      "explain_current_page",
+      "suggest_form_content",
+      "show_workflow_steps",
+    ],
     launchText: "Find care with Kai",
     subtitle: "Carehia onboarding assistant",
     previewTitle: "Care match preview",

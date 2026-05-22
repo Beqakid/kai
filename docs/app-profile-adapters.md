@@ -15,6 +15,15 @@ The embed script reads `data-app` from the host page:
 
 The Worker then loads the matching profile from `packages/kai-cloudflare/src/app-profiles.ts`.
 
+Each profile is the first version of the app integration contract. It declares:
+
+- knowledge source IDs
+- workflow IDs
+- allowed action IDs
+- greetings and labels
+- guided onboarding steps
+- the coach mode Kai should use for that app
+
 ## Current Profiles
 
 ### Viliniu
@@ -43,6 +52,14 @@ Kai helps care seekers:
 
 Kai must not make medical decisions, approve caregivers, or replace professional judgement.
 
+Carehia currently uses:
+
+- `carehia_caregiver_search`
+- `carehia_describe_care_needs`
+- `carehia_prepare_family_handoff`
+
+Its allowed actions are suggestion-only: page guidance, current-page explanation, form-content suggestions, and workflow step display.
+
 ## Adding Another App
 
 Add a new entry to `kaiEmbedAppProfiles`:
@@ -51,6 +68,9 @@ Add a new entry to `kaiEmbedAppProfiles`:
 newapp: {
   app: "newapp",
   platformName: "New App",
+  knowledgeSourceIds: [...],
+  workflowIds: [...],
+  allowedActionIds: [...],
   coachMode: "business_setup",
   greeting: {
     en: "...",
