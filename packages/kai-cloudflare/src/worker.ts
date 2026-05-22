@@ -689,6 +689,12 @@ function createEmbedScript(origin: string): string {
     return draftId ? base + "?kaiDraftId=" + encodeURIComponent(draftId) : base;
   }
 
+  function emitHostEvent(name, detail) {
+    try {
+      window.dispatchEvent(new CustomEvent(name, { detail: detail }));
+    } catch (error) {}
+  }
+
   function valueFor(stepId) {
     return guideAnswers[stepId] || "";
   }
@@ -1013,7 +1019,29 @@ function createEmbedScript(origin: string): string {
       });
       var data = await response.json();
       if (data.draft) {
-        try { sessionStorage.setItem("kai.lastWebsiteDraft", JSON.stringify({ draftId: data.draftId, draft: data.draft })); } catch (error) {}
+        var draftPayload = {
+          app: app,
+          appProfile: {
+            platformName: appProfile.platformName,
+            coachMode: appProfile.coachMode,
+            defaultRole: appProfile.defaultRole,
+            supportedRoles: appProfile.supportedRoles,
+            approvalRequiredFor: appProfile.approvalRequiredFor,
+            escalationTargets: appProfile.escalationTargets
+          },
+          draftId: data.draftId,
+          draft: data.draft,
+          answers: Object.assign({}, guideAnswers),
+          phaseBehavior: data.phase2Behavior || "draft_only",
+          approvalRequired: true
+        };
+        try {
+          sessionStorage.setItem("kai.lastWebsiteDraft", JSON.stringify({ draftId: data.draftId, draft: data.draft }));
+          if (appProfile.coachMode === "caregiver_search") {
+            sessionStorage.setItem("kai.lastCarehiaDraft", JSON.stringify(draftPayload));
+          }
+        } catch (error) {}
+        emitHostEvent("kai:draft-created", draftPayload);
         renderFinalDraft(data.draft, data.draftId);
       } else {
         stepHelper.textContent = data.error || "Kai could not create the website preview yet.";
