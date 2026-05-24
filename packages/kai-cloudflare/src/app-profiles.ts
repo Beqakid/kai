@@ -49,7 +49,7 @@ export type KaiEmbedAppProfile = {
 const viliniuGuideSteps: KaiEmbedGuideStep[] = [
   {
     id: "businessModel",
-    label: "Step 1 of 8",
+    label: "Step 1 of 9",
     title: "Do customers buy products, book services, or both?",
     helper: "This helps me route you into the right setup path.",
     input: "choice-text",
@@ -59,7 +59,7 @@ const viliniuGuideSteps: KaiEmbedGuideStep[] = [
   },
   {
     id: "businessName",
-    label: "Step 2 of 8",
+    label: "Step 2 of 9",
     title: "What is your business called?",
     helper: "I will use this for the website headline, SEO title, and business profile.",
     input: "text",
@@ -68,17 +68,17 @@ const viliniuGuideSteps: KaiEmbedGuideStep[] = [
   },
   {
     id: "businessType",
-    label: "Step 3 of 8",
+    label: "Step 3 of 9",
     title: "What type of business is it?",
     helper: "Choose one, or type your own.",
     input: "choice-text",
     placeholder: "Farm produce vendor",
-    choices: ["Farm produce vendor", "Restaurant", "Service provider", "Retail shop"],
+    choices: ["Farm produce vendor", "Restaurant", "Cleaning service", "Retail shop"],
     sample: "farm produce vendor",
   },
   {
     id: "offerings",
-    label: "Step 4 of 8",
+    label: "Step 4 of 9",
     title: "What do you sell or offer?",
     helper: "List products or services. A few words is enough.",
     input: "textarea",
@@ -87,7 +87,7 @@ const viliniuGuideSteps: KaiEmbedGuideStep[] = [
   },
   {
     id: "location",
-    label: "Step 5 of 8",
+    label: "Step 5 of 9",
     title: "Where do you serve customers?",
     helper: "This helps Kai shape local SEO and contact sections.",
     input: "text",
@@ -96,7 +96,7 @@ const viliniuGuideSteps: KaiEmbedGuideStep[] = [
   },
   {
     id: "contactInfo",
-    label: "Step 6 of 8",
+    label: "Step 6 of 9",
     title: "How should customers contact you?",
     helper: "Use phone, email, WhatsApp, or address.",
     input: "text",
@@ -105,7 +105,7 @@ const viliniuGuideSteps: KaiEmbedGuideStep[] = [
   },
   {
     id: "brand",
-    label: "Step 7 of 8",
+    label: "Step 7 of 9",
     title: "What style should the website feel like?",
     helper: "Choose a direction, or type colors.",
     input: "choice-text",
@@ -114,8 +114,17 @@ const viliniuGuideSteps: KaiEmbedGuideStep[] = [
     sample: "green, warm, fresh",
   },
   {
+    id: "businessStory",
+    label: "Step 8 of 9",
+    title: "What should customers remember about your business?",
+    helper: "A short story makes the website feel personal and trustworthy.",
+    input: "textarea",
+    placeholder: "Family-run farm delivering fresh produce every week",
+    sample: "Family-run farm delivering fresh produce every week",
+  },
+  {
     id: "preferredCustomerAction",
-    label: "Step 8 of 8",
+    label: "Step 9 of 9",
     title: "What should customers do first?",
     helper: "This becomes the main call-to-action.",
     input: "choice-text",

@@ -12,6 +12,8 @@
     "build": "tsc -b",
     "typecheck": "tsc -b --pretty false",
     "lint": "tsc -b --pretty false",
+    "test": "npm run build && node --experimental-specifier-resolution=node --test tests/*.mjs",
+    "test:routes": "npm run build && node --experimental-specifier-resolution=node --test tests/kai-worker-routes.test.mjs",
     "dev:worker": "wrangler dev"
   },
   "devDependencies": {

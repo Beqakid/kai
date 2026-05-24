@@ -6,7 +6,7 @@ import {
   type KaiPermissionSet,
 } from "@kai/core";
 import { getKaiGreeting, normalizeKaiLanguage } from "@kai/language";
-import { kaiEmbedAppProfiles } from "./app-profiles";
+import { kaiEmbedAppProfiles } from "./app-profiles.js";
 import {
   classifyBusinessModel,
   createCreativeAssetDraftPrompt,
@@ -1290,46 +1290,62 @@ export default {
       return json(request, env, { error: "KAI is disabled" }, { status: 403 });
     }
 
+    if (!env.KAI_DB) {
+      return json(request, env, { error: "KAI_DB binding is required for Kai API routes." }, { status: 500 });
+    }
+
     const url = new URL(request.url);
 
-    if (url.pathname === "/api/kai/session" && request.method === "POST") {
-      return createSession(request, env);
-    }
-    if (url.pathname === "/api/kai/message" && request.method === "POST") {
-      return createMessage(request, env);
-    }
-    if (url.pathname === "/api/kai/workflows" && request.method === "GET") {
-      return json(request, env, { workflows: kaiWorkflowRegistry });
-    }
-    if (url.pathname === "/api/kai/knowledge/sources" && request.method === "GET") {
-      return listKnowledgeSources(request, url, env);
-    }
-    if (url.pathname === "/api/kai/preferences" && request.method === "POST") {
-      return updatePreferences(request, env);
-    }
-    if (url.pathname === "/api/kai/context" && request.method === "GET") {
-      return getContext(request, env);
-    }
-    if (url.pathname === "/api/kai/workflow-state" && request.method === "POST") {
-      return updateWorkflowState(request, env);
-    }
-    if (url.pathname === "/api/kai/website-draft" && request.method === "POST") {
-      return generateWebsiteDraft(request, env);
-    }
-    if (url.pathname === "/api/kai/website-draft" && request.method === "GET") {
-      return getWebsiteDraft(request, env);
-    }
-    if (url.pathname === "/api/kai/creative-asset-draft" && request.method === "POST") {
-      return generateCreativeAssetDraft(request, env);
-    }
-    if (url.pathname === "/api/kai/viliniu/handoff" && request.method === "POST") {
-      return recordViliniuHandoff(request, env);
-    }
-    if (url.pathname === "/demo/kai" && request.method === "GET") {
-      return html(createKaiDemoPage(url.origin));
-    }
-    if ((url.pathname === "/embed/kai.js" || url.pathname === "/kai.js") && request.method === "GET") {
-      return javascript(createEmbedScript(url.origin));
+    try {
+      if (url.pathname === "/api/kai/session" && request.method === "POST") {
+        return createSession(request, env);
+      }
+      if (url.pathname === "/api/kai/message" && request.method === "POST") {
+        return createMessage(request, env);
+      }
+      if (url.pathname === "/api/kai/workflows" && request.method === "GET") {
+        return json(request, env, { workflows: kaiWorkflowRegistry });
+      }
+      if (url.pathname === "/api/kai/knowledge/sources" && request.method === "GET") {
+        return listKnowledgeSources(request, url, env);
+      }
+      if (url.pathname === "/api/kai/preferences" && request.method === "POST") {
+        return updatePreferences(request, env);
+      }
+      if (url.pathname === "/api/kai/context" && request.method === "GET") {
+        return getContext(request, env);
+      }
+      if (url.pathname === "/api/kai/workflow-state" && request.method === "POST") {
+        return updateWorkflowState(request, env);
+      }
+      if (url.pathname === "/api/kai/website-draft" && request.method === "POST") {
+        return generateWebsiteDraft(request, env);
+      }
+      if (url.pathname === "/api/kai/website-draft" && request.method === "GET") {
+        return getWebsiteDraft(request, env);
+      }
+      if (url.pathname === "/api/kai/creative-asset-draft" && request.method === "POST") {
+        return generateCreativeAssetDraft(request, env);
+      }
+      if (url.pathname === "/api/kai/viliniu/handoff" && request.method === "POST") {
+        return recordViliniuHandoff(request, env);
+      }
+      if (url.pathname === "/demo/kai" && request.method === "GET") {
+        return html(createKaiDemoPage(url.origin));
+      }
+      if ((url.pathname === "/embed/kai.js" || url.pathname === "/kai.js") && request.method === "GET") {
+        return javascript(createEmbedScript(url.origin));
+      }
+    } catch (error) {
+      return json(
+        request,
+        env,
+        {
+          error: "Kai could not complete this request safely.",
+          code: "KAI_ROUTE_ERROR",
+        },
+        { status: 500 },
+      );
     }
 
     return json(request, env, { error: "Not found" }, { status: 404 });

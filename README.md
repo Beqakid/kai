@@ -3,12 +3,12 @@
 KAI is a reusable Cloudflare-native AI Coach Framework for apps such as Viliniu,
 Carehia, CodeHive, and future products.
 
-Phase 1 keeps KAI deliberately simple: a guide-first assistant framework with a
+KAI currently stays deliberately safe: a guide-first assistant framework with a
 floating widget, app registration, knowledge loading, workflow scaffolds,
 permission-checked actions, multilingual structure, Cloudflare Worker API routes,
 and D1 audit/session logging schema.
 
-KAI is not a general chatbot and Phase 1 does not include autonomous agents,
+KAI is not a general chatbot and this build does not include autonomous agents,
 wake-word voice, support escalation, production self-modification, advanced
 memory, or full automation.
 
@@ -57,6 +57,33 @@ locales/
 
 migrations/
   0001_kai_phase1.sql
+  0002_seed_viliniu_knowledge.sql
+  0003_kai_phase2_workflows.sql
+tests/
+  kai-worker-routes.test.mjs
+  website-builder.test.mjs
+```
+
+## Local Development
+
+Install dependencies and validate the workspace:
+
+```bash
+npm ci
+npm run build
+npm test
+```
+
+Run the Worker locally:
+
+```bash
+npx wrangler dev
+```
+
+Open the demo at:
+
+```txt
+http://localhost:8787/demo/kai
 ```
 
 ## Viliniu Registration
@@ -88,7 +115,7 @@ Create the D1 database and update `wrangler.toml`:
 
 ```bash
 wrangler d1 create kai-db
-wrangler d1 migrations apply kai-db
+wrangler d1 migrations apply kai-db --remote
 ```
 
 Use Cloudflare secrets for provider keys:
@@ -98,6 +125,29 @@ wrangler secret put OPENAI_API_KEY
 ```
 
 Do not commit secrets.
+
+Required Worker bindings:
+
+- `KAI_DB` D1 database
+
+Required variables:
+
+- `AI_COACH_ENABLED`
+- `AI_COACH_MULTILINGUAL`
+- `KAI_DEFAULT_LANGUAGE`
+- `KAI_DEFAULT_AUTONOMY`
+- `KAI_ALLOWED_ORIGINS`
+
+Future disabled bindings remain scaffolded for R2, Vectorize, Durable Objects,
+AI Gateway, Queues, and Workflows.
+
+Deployment verification:
+
+```bash
+npx wrangler deploy --dry-run
+npx wrangler d1 migrations apply kai-db --local
+npx wrangler d1 execute kai-db --local --command "SELECT name FROM sqlite_schema WHERE type = 'table' AND name LIKE 'kai_%';"
+```
 
 ## API Routes
 
@@ -113,6 +163,25 @@ Do not commit secrets.
 - `POST /api/kai/creative-asset-draft`
 - `POST /api/kai/viliniu/handoff`
 - `GET /demo/kai` development demo page for the embedded Viliniu onboarding flow
+- `GET /embed/kai.js` embeddable widget script
+
+## Viliniu Demo
+
+`/demo/kai` is the Phase 2.8 demo surface. It loads the embeddable Kai widget,
+creates sessions, supports English, Spanish, and Fijian selection, guides a
+business through product/service/hybrid onboarding, generates a structured
+website draft, and keeps signup/save/publish approval-gated.
+
+Embed Kai into a Viliniu surface with:
+
+```html
+<script
+  src="https://kai.jjioji.workers.dev/embed/kai.js"
+  data-app="viliniu"
+  data-api-base="https://kai.jjioji.workers.dev"
+  defer
+></script>
+```
 
 ## Feature Flags
 
@@ -177,6 +246,16 @@ It can prepare logo/product/service image prompts, but image generation, saving,
 and publishing remain approval-gated future work.
 
 See `docs/phase-2-7-business-model-creative-assets.md`.
+
+## Phase 2.8
+
+Phase 2.8 stabilizes the Viliniu demo. It verifies TypeScript, Worker dry-run
+deployment, local D1 migrations, API route behavior, draft-only website
+generation, creative asset draft prompts, CORS responses, and embed safety. The
+guided setup now includes a short business story step and improved defaults for
+product sellers, service providers, and hybrid businesses.
+
+See `docs/phase-2-8-demo-readiness.md`.
 
 ## Future Carehia Notes
 

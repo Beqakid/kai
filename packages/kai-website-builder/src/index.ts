@@ -85,8 +85,39 @@ export const websiteBuilderQuestions = [
 
 export function classifyBusinessModel(input?: string): KaiBusinessModelClassification {
   const value = (input ?? "").toLowerCase();
-  const serviceTokens = ["service", "booking", "appointment", "repair", "clean", "care", "consult", "quote", "install", "salon"];
-  const productTokens = ["product", "store", "shop", "sell", "goods", "stock", "inventory", "delivery", "pickup", "order"];
+  const serviceTokens = [
+    "service",
+    "booking",
+    "appointment",
+    "repair",
+    "clean",
+    "care",
+    "consult",
+    "quote",
+    "install",
+    "salon",
+    "catering",
+    "maintenance",
+    "training",
+    "professional",
+  ];
+  const productTokens = [
+    "product",
+    "store",
+    "shop",
+    "sell",
+    "goods",
+    "stock",
+    "inventory",
+    "delivery",
+    "pickup",
+    "order",
+    "restaurant",
+    "retail",
+    "produce",
+    "food",
+    "market",
+  ];
   const hasService = serviceTokens.some((token) => value.includes(token));
   const hasProduct = productTokens.some((token) => value.includes(token));
 
@@ -126,6 +157,7 @@ export function createCreativeAssetDraftPrompt(request: KaiCreativeAssetDraftReq
       : request.businessModel === "hybrid"
         ? "business selling products and services"
         : "online store";
+  const modelArticle = request.businessModel === "product_seller" ? "an" : "a";
   const assetLabels = {
     logo: "a clean, trustworthy logo",
     product_image: "a product image draft",
@@ -136,7 +168,7 @@ export function createCreativeAssetDraftPrompt(request: KaiCreativeAssetDraftReq
 
   return {
     assetType: request.assetType,
-    prompt: `Create ${assetLabels[request.assetType]} for ${request.businessName}, a ${modelLabel}${subject}${colors}.${style} Keep it clear, commercial, culturally respectful, and ready for user review before use.`,
+    prompt: `Create ${assetLabels[request.assetType]} for ${request.businessName}, ${modelArticle} ${modelLabel}${subject}${colors}.${style} Keep it clear, commercial, culturally respectful, and ready for user review before use.`,
     approvalRequired: true,
     phaseBehavior: "draft_only",
     storage: {
@@ -148,14 +180,32 @@ export function createCreativeAssetDraftPrompt(request: KaiCreativeAssetDraftReq
 
 export function generateWebsiteDraftFromAnswers(answers: KaiWebsiteBuilderAnswers): KaiWebsiteDraft {
   const businessName = answers.businessName ?? "Your Business";
-  const businessModel = answers.businessModel ?? classifyBusinessModel(answers.businessType).businessModel;
+  const hasProducts = (answers.products?.length ?? 0) > 0;
+  const hasServices = (answers.services?.length ?? 0) > 0;
+  const businessModel =
+    answers.businessModel ??
+    (hasProducts && hasServices
+      ? "hybrid"
+      : hasServices
+        ? "service_provider"
+        : classifyBusinessModel(answers.businessType).businessModel);
   const businessType = answers.businessType ?? "local business";
   const products = businessModel === "service_provider" ? [] : (answers.products ?? []);
   const services = businessModel === "product_seller" ? [] : (answers.services ?? []);
-  const cta = answers.preferredCustomerAction ?? (businessModel === "product_seller" ? "Order Now" : "Request Quote");
+  const cta =
+    answers.preferredCustomerAction ??
+    (businessModel === "product_seller" ? "Order Now" : businessModel === "hybrid" ? "Shop or Request Service" : "Request Quote");
   const brandColors = answers.preferredBrandingColors?.length
     ? answers.preferredBrandingColors
     : ["#0f766e", "#f8fafc", "#f59e0b"];
+  const serviceArea = answers.serviceArea ?? answers.location ?? "the local community";
+  const topOffering = products[0] ?? services[0] ?? businessType;
+  const modelSummary =
+    businessModel === "product_seller"
+      ? "an online store"
+      : businessModel === "service_provider"
+        ? "a service provider"
+        : "a business offering products and services";
   const creativeAssetPrompts = [
     createCreativeAssetDraftPrompt({
       app: "viliniu",
@@ -192,17 +242,22 @@ export function generateWebsiteDraftFromAnswers(answers: KaiWebsiteBuilderAnswer
     businessName,
     businessModel,
     businessType,
-    tagline: `${businessName} helps customers find trusted ${businessType} offerings.`,
+    tagline:
+      businessModel === "service_provider"
+        ? `Trusted ${businessType} services for customers in ${serviceArea}.`
+        : businessModel === "hybrid"
+          ? `${businessName} brings ${topOffering} and helpful services together.`
+          : `Fresh, simple ways to order ${topOffering} from ${businessName}.`,
     about:
       answers.businessStory ??
-      `${businessName} is a ${businessType} serving ${answers.serviceArea ?? answers.location ?? "the local community"}.`,
+      `${businessName} is ${modelSummary} serving ${serviceArea}. Kai prepared this draft so the owner can review the story, offers, contact details, and customer action before anything goes live.`,
     products,
     services,
     contactInfo: answers.contactInfo ?? "Add phone, email, WhatsApp, or address.",
     ctaStyle: cta,
     seo: {
       title: `${businessName} | ${businessType}`,
-      description: `Learn about ${businessName}, a ${businessType} serving ${answers.serviceArea ?? answers.location ?? "local customers"}.`,
+      description: `${businessName} is a ${businessType} serving ${serviceArea}. Explore ${topOffering}, contact details, and the best next step for customers.`,
     },
     branding: {
       suggestedColors: brandColors,
