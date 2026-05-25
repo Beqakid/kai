@@ -128,6 +128,7 @@ function env() {
   return {
     KAI_DB: new MockD1(),
     AI_COACH_ENABLED: 'true',
+    AI_COACH_IMAGE_GENERATION_ENABLED: 'true',
     KAI_DEFAULT_LANGUAGE: 'en',
     KAI_ALLOWED_ORIGINS: 'https://viliniu.com,http://localhost:8787',
   };
@@ -273,5 +274,69 @@ describe('Kai Worker API routes', () => {
       testEnv,
     );
     assert.equal(handoff.status, 200);
+  });
+
+  it('prepares image prompts safely when image generation is not configured', async () => {
+    const testEnv = env();
+    const image = await worker.fetch(
+      request('/api/kai/image-draft', {
+        method: 'POST',
+        body: JSON.stringify({
+          userRole: 'vendor',
+          businessName: 'Bula Fresh',
+          businessType: 'farm produce vendor',
+          assetType: 'website_hero',
+          brandColors: ['teal', 'white', 'gold'],
+        }),
+      }),
+      testEnv,
+    );
+    const data = await jsonResponse(image);
+
+    assert.equal(data.status, 200);
+    assert.equal(data.body.generated, false);
+    assert.equal(data.body.phase2Behavior, 'image_prompt_only');
+    assert.match(data.body.prompt, /realistic/i);
+    assert.equal(data.body.storage.saved, false);
+  });
+
+  it('returns temporary image data when an image provider is configured', async () => {
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = async (url) => {
+      if (String(url).includes('api.openai.com/v1/images/generations')) {
+        return new Response(
+          JSON.stringify({
+            data: [{ b64_json: 'aW1hZ2UtZHJhZnQ=', revised_prompt: 'A realistic produce website hero image.' }],
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } },
+        );
+      }
+      return originalFetch(url);
+    };
+
+    try {
+      const testEnv = { ...env(), OPENAI_API_KEY: 'test-key' };
+      const image = await worker.fetch(
+        request('/api/kai/image-draft', {
+          method: 'POST',
+          body: JSON.stringify({
+            userRole: 'vendor',
+            businessName: 'Bula Fresh',
+            businessType: 'farm produce vendor',
+            assetType: 'website_hero',
+          }),
+        }),
+        testEnv,
+      );
+      const data = await jsonResponse(image);
+
+      assert.equal(data.status, 200);
+      assert.equal(data.body.generated, true);
+      assert.equal(data.body.phase2Behavior, 'temporary_image_draft_only');
+      assert.match(data.body.imageDataUrl, /^data:image\/png;base64,/);
+      assert.equal(data.body.storage.saved, false);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
   });
 });

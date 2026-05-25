@@ -16,6 +16,7 @@ onboarding demo. It does not change the architecture or autonomy model.
 - `POST /api/kai/website-draft` generates structured website drafts.
 - `GET /api/kai/website-draft?id=...` retrieves approved draft-only audit rows.
 - `POST /api/kai/creative-asset-draft` creates logo/image prompt drafts.
+- `POST /api/kai/image-draft` creates temporary realistic image previews when enabled.
 - `POST /api/kai/viliniu/handoff` records audit-only signup handoff metadata.
 
 ## Demo Flow
@@ -35,6 +36,10 @@ Kai asks one calm setup question at a time:
 The output is a structured draft only. It includes headline/tagline, about copy,
 product/service sections, contact section, CTA, SEO title and description,
 suggested colors, logo prompt, and creative asset prompt drafts.
+
+When image generation is enabled, the final preview also includes a button to
+generate a realistic website image draft from the same business answers. This
+is user-triggered and approval-gated.
 
 ## Safety
 
@@ -69,9 +74,17 @@ Required:
 - D1 database: `kai-db`
 - D1 database id: `c00f52df-b774-45d2-b39d-1f1666dc3844`
 - Secret: `OPENAI_API_KEY` for real OpenAI responses
+- Variable: `AI_COACH_IMAGE_GENERATION_ENABLED=true` to allow temporary image drafts
 
 The mock provider works when `OPENAI_API_KEY` is not set, which keeps demos and
 tests stable.
+
+## Image Drafts
+
+Kai uses OpenAI image generation for realistic image drafts only after the user
+explicitly requests one. The current route returns a temporary base64/data URL
+preview and logs the event to D1 audit logs. It does not save to R2, change
+Viliniu records, publish the image, or reuse it without future user approval.
 
 ## Future Extension Points
 

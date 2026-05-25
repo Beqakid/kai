@@ -161,6 +161,7 @@ npx wrangler d1 execute kai-db --local --command "SELECT name FROM sqlite_schema
 - `POST /api/kai/website-draft`
 - `GET /api/kai/website-draft?id=...`
 - `POST /api/kai/creative-asset-draft`
+- `POST /api/kai/image-draft`
 - `POST /api/kai/viliniu/handoff`
 - `GET /demo/kai` development demo page for the embedded Viliniu onboarding flow
 - `GET /embed/kai.js` embeddable widget script
@@ -171,6 +172,11 @@ npx wrangler d1 execute kai-db --local --command "SELECT name FROM sqlite_schema
 creates sessions, supports English, Spanish, and Fijian selection, guides a
 business through product/service/hybrid onboarding, generates a structured
 website draft, and keeps signup/save/publish approval-gated.
+
+If `OPENAI_API_KEY` is configured and `AI_COACH_IMAGE_GENERATION_ENABLED=true`,
+Kai can generate a temporary realistic image draft from the website answers.
+The image is a preview only: it is not saved to R2, attached to Viliniu data, or
+published automatically.
 
 Embed Kai into a Viliniu surface with:
 
@@ -190,6 +196,7 @@ AI_COACH_ENABLED=true
 AI_COACH_VOICE_ENABLED=false
 AI_COACH_WAKEWORD_ENABLED=false
 AI_COACH_MULTILINGUAL=true
+AI_COACH_IMAGE_GENERATION_ENABLED=true
 AI_COACH_INTERVIEW_MODE=false
 AI_COACH_ADAPTIVE_LEARNING=false
 AI_COACH_AGENT_MODE=false

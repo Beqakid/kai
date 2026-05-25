@@ -20,8 +20,10 @@ export interface KaiWorkerEnv {
   KAI_DB: D1Database;
   KAI_R2?: R2Bucket;
   OPENAI_API_KEY?: string;
+  OPENAI_IMAGE_MODEL?: string;
   KAI_DEFAULT_LANGUAGE?: string;
   AI_COACH_ENABLED?: string;
+  AI_COACH_IMAGE_GENERATION_ENABLED?: string;
   AI_COACH_MULTILINGUAL?: string;
   KAI_ALLOWED_ORIGINS?: string;
 }
@@ -498,6 +500,157 @@ async function generateCreativeAssetDraft(request: Request, env: KaiWorkerEnv): 
   });
 }
 
+function getImageMimeType(format?: string): string {
+  if (format === "webp") return "image/webp";
+  if (format === "jpeg" || format === "jpg") return "image/jpeg";
+  return "image/png";
+}
+
+async function generateRealisticImageDraft(request: Request, env: KaiWorkerEnv): Promise<Response> {
+  const body = (await request.json().catch(() => ({}))) as Partial<KaiCreativeAssetDraftRequest> & {
+    sessionId?: string;
+    userId?: string;
+    userRole?: string;
+    businessType?: string;
+    prompt?: string;
+    size?: "1024x1024" | "1024x1536" | "1536x1024";
+  };
+  const permissions = mapRoleToPermissions(body.userRole);
+
+  if (!permissions.canSuggestFormContent) {
+    return json(request, env, { error: "Image draft generation is not allowed for this role." }, { status: 403 });
+  }
+
+  if (!body.businessName) {
+    return json(request, env, { error: "businessName is required" }, { status: 400 });
+  }
+
+  const businessModel = body.businessModel ?? classifyBusinessModel(body.businessType).businessModel;
+  const assetType = body.assetType ?? "website_hero";
+  const assetDraft = createCreativeAssetDraftPrompt({
+    app: body.app ?? "viliniu",
+    businessName: body.businessName,
+    businessModel,
+    assetType,
+    subject: body.subject ?? body.businessType,
+    brandColors: body.brandColors,
+    styleNotes: body.styleNotes,
+  });
+  const prompt = [
+    body.prompt ?? assetDraft.prompt,
+    "Make it realistic and suitable for a modern business website.",
+    "Use natural lighting, believable composition, no fake UI, no readable text, and no logos unless explicitly provided.",
+    "The image is a draft for user approval and must not imply the business is already live.",
+  ].join(" ");
+  const draftId = createId("kai_image_draft");
+
+  if (env.AI_COACH_IMAGE_GENERATION_ENABLED === "false" || !env.OPENAI_API_KEY) {
+    await env.KAI_DB.prepare(
+      "INSERT INTO kai_audit_logs (id, app, session_id, user_id, action, permission, allowed, reason, metadata_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+    )
+      .bind(
+        draftId,
+        body.app ?? "viliniu",
+        body.sessionId ?? null,
+        body.userId ?? null,
+        `prepare_${assetType}_image_prompt`,
+        "canSuggestFormContent",
+        1,
+        "Prepared realistic image prompt only because image generation is disabled or no provider key is configured.",
+        JSON.stringify({ businessModel, assetType, prompt, generated: false, storage: "not_saved" }),
+      )
+      .run();
+
+    return json(request, env, {
+      draftId,
+      businessModel,
+      assetType,
+      prompt,
+      generated: false,
+      approvalRequired: true,
+      phase2Behavior: "image_prompt_only",
+      storage: { provider: "future_r2", saved: false },
+    });
+  }
+
+  const imageResponse = await fetch("https://api.openai.com/v1/images/generations", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${env.OPENAI_API_KEY}`,
+    },
+    body: JSON.stringify({
+      model: env.OPENAI_IMAGE_MODEL ?? "gpt-image-1",
+      prompt,
+      n: 1,
+      size: body.size ?? (assetType === "website_hero" || assetType === "service_banner" ? "1536x1024" : "1024x1024"),
+      quality: "medium",
+      output_format: "png",
+    }),
+  });
+
+  if (!imageResponse.ok) {
+    const detail = await imageResponse.text().catch(() => "");
+    await env.KAI_DB.prepare(
+      "INSERT INTO kai_audit_logs (id, app, session_id, user_id, action, permission, allowed, reason, metadata_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+    )
+      .bind(
+        draftId,
+        body.app ?? "viliniu",
+        body.sessionId ?? null,
+        body.userId ?? null,
+        `generate_${assetType}_image_draft`,
+        "canSuggestFormContent",
+        0,
+        "OpenAI image generation failed; no image was saved or published.",
+        JSON.stringify({ businessModel, assetType, prompt, status: imageResponse.status, detail: detail.slice(0, 500) }),
+      )
+      .run();
+    return json(request, env, { error: "Kai could not generate the image draft yet.", prompt, generated: false }, { status: 502 });
+  }
+
+  const imageData = (await imageResponse.json()) as {
+    data?: Array<{ b64_json?: string; revised_prompt?: string; output_format?: string }>;
+  };
+  const firstImage = imageData.data?.[0];
+  const base64 = firstImage?.b64_json;
+
+  if (!base64) {
+    return json(request, env, { error: "Image provider returned no image data.", prompt, generated: false }, { status: 502 });
+  }
+
+  await env.KAI_DB.prepare(
+    "INSERT INTO kai_audit_logs (id, app, session_id, user_id, action, permission, allowed, reason, metadata_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+  )
+    .bind(
+      draftId,
+      body.app ?? "viliniu",
+      body.sessionId ?? null,
+      body.userId ?? null,
+      `generate_${assetType}_image_draft`,
+      "canSuggestFormContent",
+      1,
+      "Generated temporary image draft only. User approval is required before saving, publishing, or using in production.",
+      JSON.stringify({ businessModel, assetType, prompt, revisedPrompt: firstImage.revised_prompt ?? null, generated: true, storage: "not_saved" }),
+    )
+    .run();
+
+  const mimeType = getImageMimeType(firstImage.output_format);
+  return json(request, env, {
+    draftId,
+    businessModel,
+    assetType,
+    prompt,
+    revisedPrompt: firstImage.revised_prompt,
+    imageBase64: base64,
+    imageDataUrl: `data:${mimeType};base64,${base64}`,
+    generated: true,
+    approvalRequired: true,
+    phase2Behavior: "temporary_image_draft_only",
+    storage: { provider: "future_r2", saved: false },
+  });
+}
+
 async function getWebsiteDraft(request: Request, env: KaiWorkerEnv): Promise<Response> {
   const url = new URL(request.url);
   const draftId = url.searchParams.get("id");
@@ -632,7 +785,7 @@ function createEmbedScript(origin: string): string {
 
   var style = document.createElement("style");
   style.textContent = ".kai-embed{position:fixed;right:16px;bottom:16px;z-index:9999;font-family:Inter,system-ui,sans-serif;color:#0f172a}.kai-embed button,.kai-embed input,.kai-embed select,.kai-embed textarea{font:inherit}.kai-embed-launch{display:flex;align-items:center;gap:10px;border:0;border-radius:999px;background:#0f766e;color:#fff;font-weight:800;box-shadow:0 16px 40px rgba(15,23,42,.28);cursor:pointer;padding:10px 14px 10px 10px}.kai-embed-face{display:flex;align-items:center;justify-content:center;width:38px;height:38px;border-radius:999px;background:#ccfbf1;color:#0f766e;font-weight:900}.kai-embed-panel{display:none;width:min(760px,calc(100vw - 32px));height:min(680px,calc(100vh - 32px));overflow:hidden;flex-direction:column;border:1px solid #cbd5e1;border-radius:10px;background:#f8fafc;box-shadow:0 24px 80px rgba(15,23,42,.3)}.kai-embed[data-open=true] .kai-embed-panel{display:flex}.kai-embed[data-open=true] .kai-embed-launch{display:none}.kai-embed-head{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:14px 16px;border-bottom:1px solid #e2e8f0;background:#fff}.kai-embed-title{display:flex;align-items:center;gap:10px}.kai-embed-head h2,.kai-embed-head p{margin:0}.kai-embed-head h2{font-size:16px;line-height:20px}.kai-embed-head p{font-size:12px;line-height:18px;color:#64748b}.kai-embed-actions{display:flex;align-items:center;gap:8px}.kai-embed-actions select,.kai-embed-actions button{height:34px;border:1px solid #cbd5e1;border-radius:7px;background:#fff;color:#334155}.kai-embed-actions select{max-width:132px;padding:0 8px}.kai-embed-actions button{min-width:34px;cursor:pointer}.kai-embed-voice{opacity:.55}.kai-embed-body{display:grid;grid-template-columns:minmax(0,1.05fr) minmax(260px,.95fr);gap:12px;min-height:0;flex:1;padding:12px}.kai-guide{display:flex;min-width:0;min-height:0;flex-direction:column;gap:12px}.kai-card,.kai-preview-card,.kai-chat-box{border:1px solid #e2e8f0;border-radius:10px;background:#fff}.kai-card{padding:16px}.kai-pa-row{display:flex;align-items:flex-start;gap:12px}.kai-pa-avatar{display:flex;align-items:center;justify-content:center;width:52px;height:52px;flex:0 0 auto;border-radius:16px;background:linear-gradient(135deg,#0f766e,#14b8a6);color:#fff;font-size:22px;font-weight:900;box-shadow:0 12px 24px rgba(15,118,110,.2)}.kai-step-label{margin:0 0 6px;color:#0f766e;font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.08em}.kai-step-title{margin:0;color:#0f172a;font-size:22px;line-height:28px}.kai-step-helper{margin:8px 0 0;color:#475569;font-size:14px;line-height:21px}.kai-progress{height:8px;border-radius:999px;background:#e2e8f0;overflow:hidden}.kai-progress span{display:block;height:100%;border-radius:999px;background:#0f766e;transition:width .2s ease}.kai-answer{display:grid;gap:10px}.kai-answer input,.kai-answer textarea{box-sizing:border-box;width:100%;border:1px solid #cbd5e1;border-radius:8px;background:#fff;color:#0f172a;padding:10px}.kai-answer textarea{min-height:86px;resize:vertical}.kai-answer input:focus,.kai-answer textarea:focus{border-color:#0f766e;outline:none;box-shadow:0 0 0 3px rgba(15,118,110,.12)}.kai-choice-row,.kai-nav-row,.kai-preview-actions{display:flex;flex-wrap:wrap;gap:8px}.kai-choice{border:1px solid #cbd5e1;border-radius:999px;background:#fff;color:#334155;padding:8px 10px;font-size:13px;cursor:pointer}.kai-primary,.kai-secondary{border-radius:8px;padding:10px 12px;font-size:14px;font-weight:750;cursor:pointer}.kai-primary{border:0;background:#0f766e;color:#fff}.kai-secondary{border:1px solid #cbd5e1;background:#fff;color:#334155}.kai-primary:disabled{cursor:not-allowed;background:#cbd5e1;color:#64748b}.kai-preview-card{display:flex;min-width:0;min-height:0;flex-direction:column;overflow:hidden}.kai-preview-head{padding:14px 16px;border-bottom:1px solid #e2e8f0;background:#fff}.kai-preview-head h3,.kai-preview-head p{margin:0}.kai-preview-head h3{font-size:15px}.kai-preview-head p{margin-top:4px;color:#64748b;font-size:12px}.kai-preview-content{display:grid;gap:10px;overflow:auto;padding:14px}.kai-preview-empty{display:flex;min-height:220px;align-items:center;justify-content:center;text-align:center;color:#64748b;font-size:14px;line-height:22px}.kai-site-card{border:1px solid #dbeafe;border-radius:10px;background:#f8fafc;overflow:hidden}.kai-site-hero{padding:18px;background:#0f766e;color:#fff}.kai-site-hero h4{margin:0;font-size:24px;line-height:30px}.kai-site-hero p{margin:8px 0 0;color:#ccfbf1}.kai-site-section{padding:14px;border-top:1px solid #e2e8f0}.kai-site-section strong{display:block;margin-bottom:6px;color:#0f172a}.kai-site-section p,.kai-site-section ul{margin:0;color:#334155;font-size:13px;line-height:20px}.kai-chat-box{max-height:210px;overflow:hidden}.kai-chat-toggle{display:block;padding:10px 12px;cursor:pointer;color:#334155;font-size:13px;font-weight:750}.kai-embed-messages{display:flex;max-height:110px;min-height:80px;flex-direction:column;gap:8px;overflow-y:auto;padding:10px;background:#f8fafc}.kai-embed-msg{max-width:90%;border-radius:8px;padding:9px 10px;font-size:13px;line-height:18px;white-space:pre-wrap}.kai-embed-assistant{margin-right:auto;border:1px solid #e2e8f0;background:#fff;color:#334155}.kai-embed-user{margin-left:auto;background:#0f766e;color:#fff}.kai-embed-form{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;border-top:1px solid #e2e8f0;padding:10px;background:#fff}.kai-embed-form input,.kai-embed-form button{min-height:36px;border-radius:7px}.kai-embed-form input{min-width:0;border:1px solid #cbd5e1;padding:0 9px;color:#0f172a}.kai-embed-form button{border:0;padding:0 12px;background:#0f766e;color:#fff;cursor:pointer;font-weight:700}@media(max-width:720px){.kai-embed{right:12px;bottom:12px}.kai-embed-panel{width:calc(100vw - 24px);height:min(720px,calc(100vh - 24px))}.kai-embed-body{grid-template-columns:1fr;overflow:auto}.kai-guide{min-height:auto}.kai-preview-card{min-height:260px}.kai-step-title{font-size:20px;line-height:26px}}";
-  style.textContent += ".kai-embed-face,.kai-pa-avatar{overflow:hidden}.kai-embed-face img,.kai-pa-avatar img{display:block;width:100%;height:100%;object-fit:cover}.kai-pa-avatar{width:66px;height:66px;border-radius:18px}.kai-embed-voice{display:inline-flex;align-items:center;gap:6px;padding:0 9px!important;border-color:#99f6e4!important;background:#f0fdfa!important;color:#0f766e!important;font-weight:850;opacity:1!important}.kai-embed-voice[data-active=true]{background:#0f766e!important;color:#fff!important}.kai-embed-voice-dot{width:7px;height:7px;border-radius:999px;background:currentColor;box-shadow:0 0 0 4px rgba(20,184,166,.14)}.kai-voice-note{border:1px solid #99f6e4;border-radius:9px;background:#f0fdfa;color:#115e59;padding:9px 10px;font-size:12px;line-height:17px}.kai-voice-note[hidden]{display:none}";
+  style.textContent += ".kai-embed-face,.kai-pa-avatar{overflow:hidden}.kai-embed-face img,.kai-pa-avatar img{display:block;width:100%;height:100%;object-fit:cover}.kai-pa-avatar{width:66px;height:66px;border-radius:18px}.kai-embed-voice{display:inline-flex;align-items:center;gap:6px;padding:0 9px!important;border-color:#99f6e4!important;background:#f0fdfa!important;color:#0f766e!important;font-weight:850;opacity:1!important}.kai-embed-voice[data-active=true]{background:#0f766e!important;color:#fff!important}.kai-embed-voice-dot{width:7px;height:7px;border-radius:999px;background:currentColor;box-shadow:0 0 0 4px rgba(20,184,166,.14)}.kai-voice-note{border:1px solid #99f6e4;border-radius:9px;background:#f0fdfa;color:#115e59;padding:9px 10px;font-size:12px;line-height:17px}.kai-voice-note[hidden]{display:none}.kai-generated-image{display:grid;gap:8px}.kai-generated-image img{width:100%;border-radius:8px;border:1px solid #dbeafe;background:#e2e8f0;aspect-ratio:3/2;object-fit:cover}.kai-image-status{color:#64748b;font-size:12px;line-height:17px}";
   document.head.appendChild(style);
 
   var root = document.createElement("div");
@@ -1074,6 +1227,25 @@ function createEmbedScript(origin: string): string {
       card.appendChild(creative);
     }
 
+    var imageSection = document.createElement("div");
+    imageSection.className = "kai-site-section kai-generated-image";
+    var imageLabel = document.createElement("strong");
+    imageLabel.textContent = "Realistic website image draft";
+    var imageStatus = document.createElement("p");
+    imageStatus.className = "kai-image-status";
+    imageStatus.textContent = "Kai can generate a temporary image draft from this setup. You approve before anything is saved or used.";
+    var imageButton = document.createElement("button");
+    imageButton.type = "button";
+    imageButton.className = "kai-secondary";
+    imageButton.textContent = "Generate image draft";
+    imageButton.addEventListener("click", function () {
+      void generateImageDraft(imageButton, imageSection, draft);
+    });
+    imageSection.appendChild(imageLabel);
+    imageSection.appendChild(imageStatus);
+    imageSection.appendChild(imageButton);
+    card.appendChild(imageSection);
+
     var actions = document.createElement("div");
     actions.className = "kai-site-section kai-preview-actions";
     var signup = document.createElement("button");
@@ -1108,6 +1280,50 @@ function createEmbedScript(origin: string): string {
       window.location.href = getVendorSignupUrl(draftId);
     });
     answerArea.appendChild(nextActions);
+  }
+
+  async function generateImageDraft(button, container, draft) {
+    button.disabled = true;
+    button.textContent = "Generating image...";
+    var statusNode = container.querySelector(".kai-image-status");
+    if (statusNode) statusNode.textContent = "Kai is creating a temporary draft image. This may take a moment.";
+    try {
+      var currentSession = await ensureSession();
+      var response = await fetch(apiBase.replace(/\\/$/, "") + "/api/kai/image-draft", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          app: app,
+          sessionId: currentSession,
+          userRole: userRole,
+          businessName: draft.businessName,
+          businessType: draft.businessType,
+          businessModel: draft.businessModel,
+          assetType: "website_hero",
+          subject: draft.products && draft.products.length ? draft.products.join(", ") : draft.services && draft.services.length ? draft.services.join(", ") : draft.businessType,
+          brandColors: draft.branding && draft.branding.suggestedColors,
+          styleNotes: draft.about
+        })
+      });
+      var data = await response.json();
+      if (data.imageDataUrl) {
+        var img = document.createElement("img");
+        img.alt = "Kai generated website image draft for " + draft.businessName;
+        img.src = data.imageDataUrl;
+        container.insertBefore(img, button);
+        if (statusNode) statusNode.textContent = "Draft generated. It is not saved or published until you approve it in a future step.";
+        emitHostEvent("kai:image-draft-created", { app: app, draftId: data.draftId, imageGenerated: true, approvalRequired: true });
+      } else if (data.prompt) {
+        if (statusNode) statusNode.textContent = "Image generation is not enabled yet, but Kai prepared this prompt: " + data.prompt;
+      } else {
+        if (statusNode) statusNode.textContent = data.error || "Kai could not generate the image draft yet.";
+      }
+    } catch (error) {
+      if (statusNode) statusNode.textContent = "Kai could not generate the image draft right now.";
+    } finally {
+      button.disabled = false;
+      button.textContent = "Generate another image";
+    }
   }
 
   async function generateGuidedDraft(button) {
@@ -1326,6 +1542,9 @@ export default {
       }
       if (url.pathname === "/api/kai/creative-asset-draft" && request.method === "POST") {
         return generateCreativeAssetDraft(request, env);
+      }
+      if (url.pathname === "/api/kai/image-draft" && request.method === "POST") {
+        return generateRealisticImageDraft(request, env);
       }
       if (url.pathname === "/api/kai/viliniu/handoff" && request.method === "POST") {
         return recordViliniuHandoff(request, env);
