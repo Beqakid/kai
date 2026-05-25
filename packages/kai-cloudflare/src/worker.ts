@@ -1237,7 +1237,7 @@ function createEmbedScript(origin: string): string {
     var imageButton = document.createElement("button");
     imageButton.type = "button";
     imageButton.className = "kai-secondary";
-    imageButton.textContent = "Generate image draft";
+    imageButton.textContent = "Generate realistic image draft";
     imageButton.addEventListener("click", function () {
       void generateImageDraft(imageButton, imageSection, draft);
     });
@@ -1279,6 +1279,14 @@ function createEmbedScript(origin: string): string {
     nextActions.firstChild.addEventListener("click", function () {
       window.location.href = getVendorSignupUrl(draftId);
     });
+    var imageCta = document.createElement("button");
+    imageCta.type = "button";
+    imageCta.className = "kai-primary";
+    imageCta.textContent = "Generate realistic image";
+    imageCta.addEventListener("click", function () {
+      void generateImageDraft(imageCta, imageSection, draft);
+    });
+    nextActions.appendChild(imageCta);
     answerArea.appendChild(nextActions);
   }
 
