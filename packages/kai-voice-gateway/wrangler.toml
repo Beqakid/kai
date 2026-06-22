@@ -1,0 +1,46 @@
+# Kai Voice Gateway — Cloudflare Worker Configuration
+
+name = "kai-voice-gateway"
+main = "src/index.ts"
+compatibility_date = "2024-12-01"
+
+# Cloudflare Workers AI binding (for STT + TTS via @cf models)
+[ai]
+binding = "AI"
+
+# D1 Database — voice session & interaction logging
+# Create with: wrangler d1 create kai-voice
+# Then run migration: wrangler d1 execute kai-voice --file=./migrations/0001_kai_voice_tables.sql
+[[d1_databases]]
+binding = "KAI_DB"
+database_name = "kai-voice"
+database_id = "YOUR_D1_DATABASE_ID"  # Replace after `wrangler d1 create kai-voice`
+
+[vars]
+# STT provider: mock | cloudflare-ai | whisper | deepgram
+KAI_STT_PROVIDER = "cloudflare-ai"
+# TTS provider: mock | cloudflare-ai | openai-tts | elevenlabs
+KAI_TTS_PROVIDER = "cloudflare-ai"
+# Kai Core provider: mock | kai-core
+KAI_CORE_PROVIDER = "kai-core"
+# Store raw audio in R2 (keep disabled — no raw audio stored by default)
+ENABLE_KAI_AUDIO_STORAGE = "false"
+# TTS voice config (optional overrides)
+# KAI_TTS_VOICE = "en_us-female"
+# KAI_TTS_LANGUAGE = "en"
+# KAI_TTS_SPEED = "1.0"
+
+# Secrets (set via `wrangler secret put <NAME>`)
+# KAI_AUTH_SECRET = ""         # JWT verification secret
+# OPENAI_API_KEY = ""          # Required if KAI_STT_PROVIDER=whisper or KAI_TTS_PROVIDER=openai-tts
+# DEEPGRAM_API_KEY = ""        # Required if KAI_STT_PROVIDER=deepgram
+# ELEVENLABS_API_KEY = ""      # Required if KAI_TTS_PROVIDER=elevenlabs
+
+# Future bindings:
+# [[r2_buckets]]
+# binding = "KAI_AUDIO_BUCKET"
+# bucket_name = "kai-voice-audio"
+
+# [[kv_namespaces]]
+# binding = "KAI_SESSIONS"
+# id = "<your-kv-id>"
