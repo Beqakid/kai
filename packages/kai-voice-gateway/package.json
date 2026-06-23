@@ -6,6 +6,8 @@
     "dev": "wrangler dev",
     "deploy": "wrangler deploy",
     "test": "vitest run",
+    "test:security": "vitest run src/__tests__/security/",
+    "retest:kai": "vitest run src/__tests__/security/ --reporter=verbose",
     "seed:carehia-ai-os": "tsx scripts/seed-carehia-ai-os.ts",
     "seed:carehia-ai-os:sql": "tsx scripts/seed-carehia-ai-os.ts --sql",
     "seed:carehia-ai-os:dry-run": "tsx scripts/seed-carehia-ai-os.ts --dry-run"

@@ -729,3 +729,37 @@ Once seeded, these tasks appear in the **Jon Command Center Kai Tasks Panel**:
 
 Tasks use `appId: "jon-command-center"` and `project: "Carehia AI OS Transformation"` so they can be filtered as a group.
 
+---
+
+## Phase 9 — Security Retest Suite
+
+Phase 9 is a security-only retest covering all Kai subsystems. No new capabilities were added.
+
+### Running Security Tests
+
+```bash
+# Run all 100 security tests
+npm run test:security
+
+# Run with verbose output
+npm run retest:kai
+```
+
+### Test Coverage (100 tests across 8 files)
+
+| Test File | Tests | Covers |
+|-----------|-------|--------|
+| `auth-security.test.ts` | 14 | JWT auth, token claim enforcement, demo-token isolation |
+| `permission-gate-security.test.ts` | 12 | Blocked actions, role hierarchy, client-side escalation prevention |
+| `pending-confirmation-security.test.ts` | 14 | Pending workflow, cross-user protection, expiry, status transitions |
+| `action-receipts-security.test.ts` | 14 | Audit trail, metadata sanitization, graceful degradation |
+| `prooftrust-bridge-security.test.ts` | 13 | Bridge evaluate-only, gate delegation, app-agnostic verification |
+| `voice-gateway-security.test.ts` | 12 | No background listening, audio storage off, rate limiting |
+| `orchestrator-security.test.ts` | 11 | Gate-first architecture, risk classification, advisory-only helpMeOut |
+| `carehia-seed-security.test.ts` | 10 | Planning-only tasks, duplicate protection, no production impact |
+
+### Documentation
+
+- [`SECURITY_RETEST_CHECKLIST.md`](./SECURITY_RETEST_CHECKLIST.md) — Full checklist of all 100 security assertions
+- [`SECURITY_RETEST_REPORT.md`](./SECURITY_RETEST_REPORT.md) — Detailed report with findings and recommendations
+
