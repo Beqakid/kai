@@ -575,3 +575,155 @@ import { VoiceHistory } from './components/VoiceHistory';
 Shows: timestamp, app, role, transcript, Kai response, providers, risk level, errors.
 Supports filtering by app and risk level.
 Non-admin users see an access denied message.
+
+## ProofTrust Bridge Lite (Phase 7)
+
+### What It Is
+
+The ProofTrust Bridge is a reusable interface layer that sits between Kai's existing safety infrastructure (Permission Gate, Action Receipts, Pending Confirmation Workflow) and the future ProofTrust Engine. It provides a clean, app-agnostic contract so Kai's safety decisions, receipts, approvals, and risk evaluations can later be routed through a centralized trust engine without code changes to each app.
+
+### What It Does Now
+
+- **`ProofTrustBridge` interface** — defines 11 methods covering the full action lifecycle: `createReceipt`, `evaluateAction`, `requireApproval`, `recordBlockedAction`, `recordAiRecommendation`, `recordPreparedAction`, `recordConfirmedAction`, `recordDeniedAction`, `recordExpiredAction`, `recordExecutedAction`, `getTrustStatus`.
+- **`ProofTrustBridgeLite` implementation** — a lightweight bridge that:
+  - Uses existing Kai Action Receipts (D1 `kai_action_receipts` table) as the receipt backend.
+  - Mirrors gate decisions from `KaiPermissionGate` — the gate remains authoritative.
+  - Enriches receipt metadata with ProofTrust-shaped fields (`proofTrustBridgeVersion`, `proofTrustDecision`, `proofTrustReceiptType`, `targetType`, `targetId`, `tenantId`).
+  - Maps all 15+ Kai receipt types to generic ProofTrust receipt types (e.g. `kai_action_blocked` → `ai_action_blocked`).
+  - Sends lifecycle events for every pending action state change (prepared, confirmed, denied, expired, executed).
+  - Sanitizes metadata to prevent storage of tokens, secrets, raw audio, or private documents.
+- **`GET /api/kai/prooftrust/status`** — super-admin-only route showing bridge mode, engine connection status, supported apps/receipt types/risk levels, and version.
+- **`POST /api/kai/prooftrust/evaluate`** — super-admin-only route for testing ProofTrust evaluation without executing an action.
+
+### What It Does NOT Do Yet
+
+- Does not connect to an external ProofTrust Engine service.
+- Does not create new production trust tables.
+- Does not execute actions — only records and evaluates.
+- Does not override the Permission Gate or Pending Confirmation Workflow.
+- Does not contain app-specific trust logic (no Carehia, Viliniu, Volau, or JCC rules).
+
+### How It Prepares Kai for the Full ProofTrust Engine
+
+The bridge establishes the data contract and integration points now so the future full engine can:
+1. **Replace `ProofTrustBridgeLite`** with a full implementation that satisfies the same `ProofTrustBridge` interface.
+2. **Route receipts** to a dedicated ProofTrust receipt store instead of `kai_action_receipts`.
+3. **Evaluate actions** using external rule packs instead of mirroring the local gate.
+4. **Connect Carehia, Viliniu, Volau, and JCC** through app-specific rule packs that plug into the generic interface — no hardcoded logic needed.
+
+### Why App-Specific Rules Should Not Be Hardcoded
+
+Each app (Carehia, Viliniu, Volau, Jon Command Center) has different trust requirements, risk thresholds, and compliance needs. Hardcoding these into the bridge would:
+- Create tight coupling between the trust layer and individual apps.
+- Make it impossible to update one app's rules without redeploying the whole gateway.
+- Violate separation of concerns.
+
+Instead, the full ProofTrust Engine will support **rule packs** — pluggable, per-app trust configurations that the bridge loads dynamically.
+
+### ProofTrust Types
+
+All types are in `src/prooftrust/types.ts`:
+
+| Type | Purpose |
+|---|---|
+| `ProofTrustAppId` | Application identifier |
+| `ProofTrustTenantId` | Optional multi-tenant identifier |
+| `ProofTrustActor` | Actor identity (id, role, workspace) |
+| `ProofTrustTarget` | Action target (type, id) |
+| `ProofTrustActionInput` | Input for evaluating an action |
+| `ProofTrustReceiptInput` | Input for creating a receipt |
+| `ProofTrustEvaluationResult` | Evaluation output (decision, risk, confirmation) |
+| `ProofTrustApprovalRequest` | Input for requesting approval |
+| `ProofTrustTrustStatus` | System status output |
+| `ProofTrustReceiptType` | 15 generic receipt types |
+| `ProofTrustRiskLevel` | low / medium / high / blocked |
+| `ProofTrustDecision` | allow / deny / requiresConfirmation / requiresAdminApproval |
+
+### API Routes
+
+#### `GET /api/kai/prooftrust/status`
+- **Access:** super-admin only
+- **Returns:** bridge mode, engine status, supported apps/types/levels, version, note
+
+#### `POST /api/kai/prooftrust/evaluate`
+- **Access:** super-admin only
+- **Body:** `{ appId, actionType, actorRole, riskLevel, targetType?, targetId?, metadata? }`
+- **Returns:** `{ decision, riskLevel, requiresConfirmation, requiresAdminApproval, reason, bridgeMode }`
+
+---
+
+## Carehia AI OS Task Seed Pack (Phase 8)
+
+Phase 8 adds a seed pack of **15 Carehia AI OS Transformation tasks** that Kai can operate on from Jon Command Center. These are planning and review tasks for the Carehia transformation roadmap — no production code is modified.
+
+> ⚠️ **This seed pack does NOT modify the Carehia production app.** It only creates tasks inside the Kai task orchestrator that can be managed from JCC.
+
+### Purpose
+
+Kai now has the full command infrastructure (voice gateway, task orchestrator, receipts, permission gate, pending confirmation, JCC panel, ProofTrust bridge). This seed pack gives Kai **meaningful work** — a structured set of Carehia AI OS transformation tasks that Jon can review, prioritize, and act on via Kai.
+
+### Task List
+
+| # | Title | Priority | Severity | Risk | Action |
+|---|---|---|---|---|---|
+| 1 | Review and merge Kai Phase 6 JCC Tasks Panel | critical | urgent | low | summarize_blockers |
+| 2 | Review and merge Kai Phase 7 ProofTrust Bridge | critical | urgent | low | summarize_blockers |
+| 3 | Add Carehia AI OS Transformation Module in JCC | critical | urgent | low | generate_tasklet_prompt |
+| 4 | Add Carehia Proof Ledger Planner in JCC | critical | urgent | low | generate_tasklet_prompt |
+| 5 | Audit Current Carehia App Structure | critical | urgent | medium | generate_tasklet_prompt |
+| 6 | Define Unified Carehia Role and Workspace Model | high | urgent | low | generate_tasklet_prompt |
+| 7 | Plan Kai Goal Engine for Carehia | high | urgent | low | generate_tasklet_prompt |
+| 8 | Plan Carehia PrivateProof Flow | high | normal | low | generate_tasklet_prompt |
+| 9 | Plan Carehia Trust Receipts | high | normal | low | generate_tasklet_prompt |
+| 10 | Plan Carehia Dynamic Workspace Cards | medium | normal | low | generate_tasklet_prompt |
+| 11 | Plan Carehia Admin Trust Dashboard | medium | normal | low | generate_tasklet_prompt |
+| 12 | Plan Carehia Retest and Launch Readiness Tracker | medium | normal | low | generate_tasklet_prompt |
+| 13 | Plan ProofTrust Core Extraction Strategy | high | normal | low | generate_tasklet_prompt |
+| 14 | Plan Carehia Rule Pack for ProofTrust | high | normal | low | generate_tasklet_prompt |
+| 15 | Plan Kai Capability Review | medium | normal | low | generate_tasklet_prompt |
+
+### Seed File
+
+```
+seeds/carehia-ai-os-tasks.json
+```
+
+Each task includes `appId`, `project`, `title`, `description`, `source`, `priority`, `severity`, `suggestedAction`, `riskLevel`, `requiresConfirmation`, `weights` (8 priority dimensions), and `metadataJson`.
+
+### Running the Seed Script
+
+**Dry run** (preview without database changes):
+```bash
+npm run seed:carehia-ai-os:dry-run
+```
+
+**Generate SQL** (pipe to D1):
+```bash
+# Local D1
+npm run seed:carehia-ai-os:sql | npx wrangler d1 execute KAI_DB --local --file=-
+
+# Production D1 (requires --remote flag)
+npm run seed:carehia-ai-os:sql > seed.sql
+npx wrangler d1 execute KAI_DB --remote --file=seed.sql
+```
+
+**JSON summary**:
+```bash
+npm run seed:carehia-ai-os
+```
+
+The script:
+- Reads `seeds/carehia-ai-os-tasks.json`
+- Generates INSERT statements for the `kai_tasks` table
+- Skips duplicates by `title + project` (uses `WHERE NOT EXISTS`)
+- Reports inserted / skipped / error counts
+
+### How Tasks Appear in JCC
+
+Once seeded, these tasks appear in the **Jon Command Center Kai Tasks Panel**:
+
+1. **Task List** — All 15 tasks sorted by priority score, filterable by priority/status
+2. **Pending Confirmations** — The medium-risk "Audit Current Carehia App Structure" task requires confirmation before Kai acts
+3. **Recent Receipts** — All Kai actions on these tasks generate auditable receipts
+
+Tasks use `appId: "jon-command-center"` and `project: "Carehia AI OS Transformation"` so they can be filtered as a group.

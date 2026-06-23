@@ -1,0 +1,325 @@
+{
+  "seedPack": "Carehia AI OS Transformation",
+  "version": "1.0.0",
+  "appId": "jon-command-center",
+  "project": "Carehia AI OS Transformation",
+  "description": "Seed tasks for managing the Carehia AI OS transformation roadmap from Jon Command Center via Kai.",
+  "createdAt": "2026-06-23T00:00:00Z",
+  "tasks": [
+    {
+      "title": "Review and merge Kai Phase 6 JCC Tasks Panel",
+      "description": "Review the Phase 6 pull request that adds the Jon Command Center Kai Tasks Panel, verify tests and build pass, and merge to main.",
+      "source": "github",
+      "priority": "critical",
+      "severity": "urgent",
+      "suggestedAction": "summarize_blockers",
+      "riskLevel": "low",
+      "requiresConfirmation": false,
+      "weights": {
+        "userBlocking": 3,
+        "launchBlocking": 8,
+        "securityRisk": 1,
+        "revenueImpact": 2,
+        "affectedUsers": 4,
+        "dependencyImportance": 9,
+        "founderUrgency": 9,
+        "estimatedEffort": 9
+      },
+      "metadataJson": "{\"prNumber\":7,\"repo\":\"Beqakid/kai\",\"phase\":6,\"component\":\"jcc-tasks-panel\"}"
+    },
+    {
+      "title": "Review and merge Kai Phase 7 ProofTrust Bridge",
+      "description": "Review the Phase 7 pull request that adds the ProofTrust Bridge Interface, verify tests and build pass, and merge to main.",
+      "source": "github",
+      "priority": "critical",
+      "severity": "urgent",
+      "suggestedAction": "summarize_blockers",
+      "riskLevel": "low",
+      "requiresConfirmation": false,
+      "weights": {
+        "userBlocking": 3,
+        "launchBlocking": 8,
+        "securityRisk": 2,
+        "revenueImpact": 2,
+        "affectedUsers": 4,
+        "dependencyImportance": 9,
+        "founderUrgency": 9,
+        "estimatedEffort": 9
+      },
+      "metadataJson": "{\"prNumber\":8,\"repo\":\"Beqakid/kai\",\"phase\":7,\"component\":\"prooftrust-bridge\"}"
+    },
+    {
+      "title": "Add Carehia AI OS Transformation Module in JCC",
+      "description": "Create a planning/control module in Jon Command Center to manage the Carehia AI OS transformation roadmap. This module should show transformation phases, progress, dependencies, and blockers.",
+      "source": "phase_data",
+      "priority": "critical",
+      "severity": "urgent",
+      "suggestedAction": "generate_tasklet_prompt",
+      "riskLevel": "low",
+      "requiresConfirmation": false,
+      "weights": {
+        "userBlocking": 5,
+        "launchBlocking": 9,
+        "securityRisk": 1,
+        "revenueImpact": 6,
+        "affectedUsers": 7,
+        "dependencyImportance": 9,
+        "founderUrgency": 9,
+        "estimatedEffort": 6
+      },
+      "metadataJson": "{\"module\":\"carehia-ai-os-transformation\",\"targetApp\":\"jon-command-center\",\"deliverable\":\"planning-module\"}"
+    },
+    {
+      "title": "Add Carehia Proof Ledger Planner in JCC",
+      "description": "Create the Carehia Proof Ledger planning module covering trust receipts, AI action receipts, admin override receipts, PrivateProof receipts, dispute packets, hash chains, privacy levels, and risk detection.",
+      "source": "phase_data",
+      "priority": "critical",
+      "severity": "urgent",
+      "suggestedAction": "generate_tasklet_prompt",
+      "riskLevel": "low",
+      "requiresConfirmation": false,
+      "weights": {
+        "userBlocking": 4,
+        "launchBlocking": 8,
+        "securityRisk": 6,
+        "revenueImpact": 5,
+        "affectedUsers": 8,
+        "dependencyImportance": 8,
+        "founderUrgency": 9,
+        "estimatedEffort": 5
+      },
+      "metadataJson": "{\"module\":\"proof-ledger-planner\",\"targetApp\":\"jon-command-center\",\"covers\":[\"trust-receipts\",\"ai-action-receipts\",\"admin-override-receipts\",\"privateproof-receipts\",\"dispute-packets\",\"hash-chains\",\"privacy-levels\",\"risk-detection\"]}"
+    },
+    {
+      "title": "Audit Current Carehia App Structure",
+      "description": "Audit the current Carehia codebase, routes, database, auth, roles, onboarding, Trust Passport, verification, caregiver/client/admin workflows, and security-sensitive actions.",
+      "source": "phase_data",
+      "priority": "critical",
+      "severity": "urgent",
+      "suggestedAction": "generate_tasklet_prompt",
+      "riskLevel": "medium",
+      "requiresConfirmation": true,
+      "weights": {
+        "userBlocking": 6,
+        "launchBlocking": 9,
+        "securityRisk": 7,
+        "revenueImpact": 4,
+        "affectedUsers": 9,
+        "dependencyImportance": 10,
+        "founderUrgency": 8,
+        "estimatedEffort": 4
+      },
+      "metadataJson": "{\"auditScope\":[\"codebase\",\"routes\",\"database\",\"auth\",\"roles\",\"onboarding\",\"trust-passport\",\"verification\",\"caregiver-workflows\",\"client-workflows\",\"admin-workflows\",\"security-sensitive-actions\"],\"readOnly\":true,\"noProductionChanges\":true}"
+    },
+    {
+      "title": "Define Unified Carehia Role and Workspace Model",
+      "description": "Plan how Carehia should support caregiver, client, agency, admin, super-admin, and future partner workspaces inside one adaptive platform.",
+      "source": "phase_data",
+      "priority": "high",
+      "severity": "urgent",
+      "suggestedAction": "generate_tasklet_prompt",
+      "riskLevel": "low",
+      "requiresConfirmation": false,
+      "weights": {
+        "userBlocking": 5,
+        "launchBlocking": 7,
+        "securityRisk": 4,
+        "revenueImpact": 6,
+        "affectedUsers": 9,
+        "dependencyImportance": 8,
+        "founderUrgency": 7,
+        "estimatedEffort": 5
+      },
+      "metadataJson": "{\"roles\":[\"caregiver\",\"client\",\"agency\",\"admin\",\"super-admin\",\"partner\"],\"model\":\"unified-workspace\",\"planningOnly\":true}"
+    },
+    {
+      "title": "Plan Kai Goal Engine for Carehia",
+      "description": "Define how Kai will guide each user from current status to desired goal using role, workspace, trust status, next-best-action, and safe action gates.",
+      "source": "phase_data",
+      "priority": "high",
+      "severity": "urgent",
+      "suggestedAction": "generate_tasklet_prompt",
+      "riskLevel": "low",
+      "requiresConfirmation": false,
+      "weights": {
+        "userBlocking": 4,
+        "launchBlocking": 7,
+        "securityRisk": 3,
+        "revenueImpact": 7,
+        "affectedUsers": 9,
+        "dependencyImportance": 7,
+        "founderUrgency": 8,
+        "estimatedEffort": 4
+      },
+      "metadataJson": "{\"engine\":\"kai-goal-engine\",\"signals\":[\"role\",\"workspace\",\"trust-status\",\"next-best-action\",\"safe-action-gates\"],\"planningOnly\":true}"
+    },
+    {
+      "title": "Plan Carehia PrivateProof Flow",
+      "description": "Plan privacy-first on-device proof verification for identity, CPR, certifications, background check status, and agency credentials.",
+      "source": "phase_data",
+      "priority": "high",
+      "severity": "normal",
+      "suggestedAction": "generate_tasklet_prompt",
+      "riskLevel": "low",
+      "requiresConfirmation": false,
+      "weights": {
+        "userBlocking": 3,
+        "launchBlocking": 6,
+        "securityRisk": 8,
+        "revenueImpact": 5,
+        "affectedUsers": 8,
+        "dependencyImportance": 6,
+        "founderUrgency": 6,
+        "estimatedEffort": 4
+      },
+      "metadataJson": "{\"proofTypes\":[\"identity\",\"cpr\",\"certifications\",\"background-check\",\"agency-credentials\"],\"privacyModel\":\"on-device-first\",\"planningOnly\":true}"
+    },
+    {
+      "title": "Plan Carehia Trust Receipts",
+      "description": "Define receipt types for caregiver, client, agency, admin, system, AI, verification, booking, payment, payout, and dispute workflows.",
+      "source": "phase_data",
+      "priority": "high",
+      "severity": "normal",
+      "suggestedAction": "generate_tasklet_prompt",
+      "riskLevel": "low",
+      "requiresConfirmation": false,
+      "weights": {
+        "userBlocking": 3,
+        "launchBlocking": 6,
+        "securityRisk": 5,
+        "revenueImpact": 5,
+        "affectedUsers": 8,
+        "dependencyImportance": 7,
+        "founderUrgency": 6,
+        "estimatedEffort": 5
+      },
+      "metadataJson": "{\"receiptCategories\":[\"caregiver\",\"client\",\"agency\",\"admin\",\"system\",\"ai\",\"verification\",\"booking\",\"payment\",\"payout\",\"dispute\"],\"planningOnly\":true}"
+    },
+    {
+      "title": "Plan Carehia Dynamic Workspace Cards",
+      "description": "Define adaptive cards that show user status, missing steps, recommended action, trust status, risk state, and Kai guidance per role.",
+      "source": "phase_data",
+      "priority": "medium",
+      "severity": "normal",
+      "suggestedAction": "generate_tasklet_prompt",
+      "riskLevel": "low",
+      "requiresConfirmation": false,
+      "weights": {
+        "userBlocking": 4,
+        "launchBlocking": 5,
+        "securityRisk": 2,
+        "revenueImpact": 6,
+        "affectedUsers": 9,
+        "dependencyImportance": 5,
+        "founderUrgency": 5,
+        "estimatedEffort": 5
+      },
+      "metadataJson": "{\"cardSignals\":[\"user-status\",\"missing-steps\",\"recommended-action\",\"trust-status\",\"risk-state\",\"kai-guidance\"],\"perRole\":true,\"planningOnly\":true}"
+    },
+    {
+      "title": "Plan Carehia Admin Trust Dashboard",
+      "description": "Plan admin visibility for ledger health, pending trust reviews, high-risk actions, AI recommendations, override monitor, dispute packets, and receipt chain status.",
+      "source": "phase_data",
+      "priority": "medium",
+      "severity": "normal",
+      "suggestedAction": "generate_tasklet_prompt",
+      "riskLevel": "low",
+      "requiresConfirmation": false,
+      "weights": {
+        "userBlocking": 2,
+        "launchBlocking": 5,
+        "securityRisk": 5,
+        "revenueImpact": 4,
+        "affectedUsers": 4,
+        "dependencyImportance": 5,
+        "founderUrgency": 5,
+        "estimatedEffort": 5
+      },
+      "metadataJson": "{\"dashboardPanels\":[\"ledger-health\",\"pending-trust-reviews\",\"high-risk-actions\",\"ai-recommendations\",\"override-monitor\",\"dispute-packets\",\"receipt-chain-status\"],\"planningOnly\":true}"
+    },
+    {
+      "title": "Plan Carehia Retest and Launch Readiness Tracker",
+      "description": "Create a final readiness tracker for Carehia AI OS features, security gates, proof ledger flows, role/workspace model, Kai workflows, and production rollout.",
+      "source": "phase_data",
+      "priority": "medium",
+      "severity": "normal",
+      "suggestedAction": "generate_tasklet_prompt",
+      "riskLevel": "low",
+      "requiresConfirmation": false,
+      "weights": {
+        "userBlocking": 3,
+        "launchBlocking": 8,
+        "securityRisk": 4,
+        "revenueImpact": 6,
+        "affectedUsers": 9,
+        "dependencyImportance": 4,
+        "founderUrgency": 5,
+        "estimatedEffort": 6
+      },
+      "metadataJson": "{\"trackerCategories\":[\"ai-os-features\",\"security-gates\",\"proof-ledger-flows\",\"role-workspace-model\",\"kai-workflows\",\"production-rollout\"],\"planningOnly\":true}"
+    },
+    {
+      "title": "Plan ProofTrust Core Extraction Strategy",
+      "description": "Define how to keep ProofTrust reusable across Carehia, Viliniu, Volau, JCC, and future platforms using core engine plus app-specific rule packs.",
+      "source": "phase_data",
+      "priority": "high",
+      "severity": "normal",
+      "suggestedAction": "generate_tasklet_prompt",
+      "riskLevel": "low",
+      "requiresConfirmation": false,
+      "weights": {
+        "userBlocking": 2,
+        "launchBlocking": 7,
+        "securityRisk": 3,
+        "revenueImpact": 7,
+        "affectedUsers": 8,
+        "dependencyImportance": 9,
+        "founderUrgency": 7,
+        "estimatedEffort": 4
+      },
+      "metadataJson": "{\"targetApps\":[\"carehia\",\"viliniu\",\"volau\",\"jon-command-center\"],\"architecture\":\"core-engine-plus-rule-packs\",\"planningOnly\":true}"
+    },
+    {
+      "title": "Plan Carehia Rule Pack for ProofTrust",
+      "description": "Define the Carehia-specific ProofTrust rule pack including caregiver verification, CPR proof, background check status, booking, payment, payout changes, admin approvals, disputes, and client trust labels.",
+      "source": "phase_data",
+      "priority": "high",
+      "severity": "normal",
+      "suggestedAction": "generate_tasklet_prompt",
+      "riskLevel": "low",
+      "requiresConfirmation": false,
+      "weights": {
+        "userBlocking": 2,
+        "launchBlocking": 6,
+        "securityRisk": 6,
+        "revenueImpact": 5,
+        "affectedUsers": 8,
+        "dependencyImportance": 7,
+        "founderUrgency": 6,
+        "estimatedEffort": 5
+      },
+      "metadataJson": "{\"rulePack\":\"carehia\",\"rules\":[\"caregiver-verification\",\"cpr-proof\",\"background-check-status\",\"booking\",\"payment\",\"payout-changes\",\"admin-approvals\",\"disputes\",\"client-trust-labels\"],\"planningOnly\":true}"
+    },
+    {
+      "title": "Plan Kai Capability Review",
+      "description": "Create a capability review documenting what Kai can do now, what is blocked, what requires confirmation, what requires admin approval, and what still needs ProofTrust.",
+      "source": "phase_data",
+      "priority": "medium",
+      "severity": "normal",
+      "suggestedAction": "generate_tasklet_prompt",
+      "riskLevel": "low",
+      "requiresConfirmation": false,
+      "weights": {
+        "userBlocking": 2,
+        "launchBlocking": 5,
+        "securityRisk": 3,
+        "revenueImpact": 3,
+        "affectedUsers": 5,
+        "dependencyImportance": 6,
+        "founderUrgency": 5,
+        "estimatedEffort": 7
+      },
+      "metadataJson": "{\"reviewScope\":[\"current-capabilities\",\"blocked-actions\",\"confirmation-required\",\"admin-approval-required\",\"prooftrust-pending\"],\"planningOnly\":true}"
+    }
+  ]
+}
