@@ -400,6 +400,90 @@ interface KaiVoiceOrbProps {
 }
 ```
 
+## Kai Tasks Panel — Jon Command Center (Phase 6)
+
+### Overview
+
+`KaiTasksPanel` is the primary integration component for Jon Command Center.
+It surfaces all Kai capabilities in a single panel:
+
+| Section | Description |
+|---------|-------------|
+| **Command Header** | Kai status, current app/role, gateway connection, safety notice |
+| **Top Priority Card** | Highest-priority actionable task with score, risk level, gate decision |
+| **Task Priority Groups** | Tasks grouped by Critical / High / Medium / Low |
+| **Pending Confirmations** | Actions awaiting user confirm/deny (from Phase 5) |
+| **Recent Action Receipts** | Auditable receipt log with filters (from Phase 3) |
+| **Help Me Out** | Kai recommendation flow with gate decision display |
+| **Next Command Box** | Free-text command input with quick-action suggestions |
+
+### Required API Routes
+
+The panel calls these gateway routes (all require a valid JWT in `Authorization: Bearer <token>`):
+
+| Route | Method | Purpose |
+|-------|--------|---------|
+| `/api/kai/tasks` | GET | List tasks (optional `?priority=` filter) |
+| `/api/kai/tasks/:id/action` | POST | Execute task action |
+| `/api/kai/orchestrator/help-me-out` | POST | Get Kai recommendation |
+| `/api/kai/orchestrator/next` | POST | Send text command |
+| `/api/kai/actions/pending` | GET | List pending confirmations |
+| `/api/kai/actions/:id/confirm` | POST | Confirm a pending action |
+| `/api/kai/actions/:id/deny` | POST | Deny a pending action |
+| `/api/kai/action-receipts` | GET | List recent receipts (admin only) |
+
+### Auth Token
+
+Set the auth token via:
+- `window.__KAI_AUTH_TOKEN__` (runtime injection)
+- `NEXT_PUBLIC_KAI_AUTH_TOKEN` env var
+
+The gateway URL defaults to `https://kai-voice-gateway.jjioji.workers.dev` and
+can be overridden via `window.__KAI_GATEWAY_URL__`.
+
+### Pending Confirmation Behavior
+
+When a medium-risk action is triggered:
+1. The orchestrator creates a pending action (15-minute TTL)
+2. The panel switches to the **Pending** tab automatically
+3. The user sees the action details, gate decision, and expiry countdown
+4. **Confirm** re-validates through the Permission Gate, then executes
+5. **Deny** marks the action as denied with a receipt
+6. Expired actions cannot be confirmed
+
+### Receipt Panel Behavior
+
+The receipts panel shows the last 30 action receipts with filters for:
+- Receipt type (executed, blocked, confirmed, denied, expired, etc.)
+- Risk level (low, medium, high, blocked)
+- Task ID
+
+### Risk Label System
+
+| Risk Level | Label | Description |
+|------------|-------|-------------|
+| `low` | Low Risk | Safe to execute |
+| `medium` | Medium Risk | Confirmation required |
+| `high` | High Risk | Admin approval required |
+| `blocked` | Blocked | Not allowed |
+
+### Safety Model
+
+- The UI **does not bypass** the Permission and Risk Gate
+- Medium-risk actions **create pending confirmations** — never auto-execute
+- High-risk and blocked actions are **denied by the gateway** — the UI shows the denial reason
+- All actions produce auditable receipts
+
+### Usage
+
+```tsx
+import KaiTasksPanel from "@/components/kai/KaiTasksPanel";
+
+export default function Dashboard() {
+  return <KaiTasksPanel />;
+}
+```
+
 ### Integration Examples
 
 #### Jon Command Center
