@@ -33,9 +33,48 @@
 }
 
 /* Line clamp utility */
+.line-clamp-2 {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
 .line-clamp-3 {
   display: -webkit-box;
   -webkit-line-clamp: 3;
   -webkit-box-orient: vertical;
   overflow: hidden;
+}
+
+/* Kai risk-level badge colors */
+.risk-low       { @apply bg-green-50 text-green-700 border-green-200; }
+.risk-medium    { @apply bg-amber-50 text-amber-700 border-amber-200; }
+.risk-high      { @apply bg-red-50 text-red-700 border-red-200; }
+.risk-blocked   { @apply bg-red-100 text-red-800 border-red-300; }
+
+/* Pending action card shimmer for expiring-soon state */
+@keyframes shimmer-amber {
+  0%, 100% { border-color: rgb(245, 158, 11); }
+  50% { border-color: rgb(217, 119, 6); }
+}
+.pending-expiring {
+  animation: shimmer-amber 2s ease-in-out infinite;
+}
+
+/* Kai smooth section transitions */
+.kai-section-enter {
+  animation: fadeSlideIn 0.25s ease-out both;
+}
+@keyframes fadeSlideIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Toast slide-in */
+@keyframes toastIn {
+  from { opacity: 0; transform: translateX(16px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+.toast-enter {
+  animation: toastIn 0.3s ease-out both;
 }
