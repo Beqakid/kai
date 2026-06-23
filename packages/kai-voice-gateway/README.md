@@ -224,6 +224,80 @@ When an action is evaluated by the gate, the API response includes:
 }
 ```
 
+## Kai Pending Confirmation Workflow (Phase 5)
+
+Phase 5 adds a real confirmation lifecycle for medium-risk actions. Actions are prepared but **not executed** until the authenticated user explicitly confirms.
+
+### Action Lifecycle by Risk Level
+
+| Risk | Behavior | Lifecycle |
+|---|---|---|
+| **Low** | Auto-execute | gate → execute → receipt |
+| **Medium** | Pending confirmation | gate → prepare → store pending → **user confirms or denies** → re-gate → execute (or deny) → receipt |
+| **High** | Admin approval required (denied in v1) | gate → deny → receipt |
+| **Blocked** | Always denied | gate → deny → receipt |
+
+### Pending Action Status Flow
+
+```
+pending → confirmed → executed
+pending → denied
+pending → expired
+```
+
+### D1 Table
+
+`kai_pending_actions` stores pending actions with:
+- `id` — unique `pa_` prefixed ID
+- `status` — pending / confirmed / denied / expired / executed
+- `expires_at` — 15-minute default expiration
+- `prepared_output` — the drafted action content
+- `gate_decision_json` — original gate decision snapshot
+- `confirmed_by` / `denied_by` — who resolved the action
+
+### New API Routes
+
+#### `GET /api/kai/actions/pending`
+
+List pending actions for the authenticated user. Super-admins can filter by `appId`, `userId`, `status`, `taskId`.
+
+#### `POST /api/kai/actions/:id/confirm`
+
+Confirm and execute a pending medium-risk action. Re-runs the Permission Gate before execution. If the gate decision has changed, execution is blocked.
+
+#### `POST /api/kai/actions/:id/deny`
+
+Deny a pending action and create a denial receipt.
+
+### Safety Rules
+
+1. Only medium-risk actions can enter the pending flow.
+2. High-risk and blocked actions are **never** stored as pending.
+3. Pending actions expire after 15 minutes.
+4. Only the owning user or super-admin can confirm/deny.
+5. Confirmation **re-runs** the Permission Gate — changed decisions block execution.
+6. All confirm/deny/expire events create Action Receipts.
+7. Never stores tokens, secrets, raw audio, or private documents.
+
+### New Receipt Types
+
+| Type | When |
+|---|---|
+| `kai_action_confirmed` | Pending action is confirmed |
+| `kai_action_denied` | Pending action is denied (user or gate re-check) |
+| `kai_action_expired` | Pending action expires without resolution |
+
+### OrchestratorResponse Additions
+
+```json
+{
+  "pendingActionId": "pa_abc123",
+  "pendingActionStatus": "pending",
+  "expiresAt": "2026-06-23T03:45:00.000Z",
+  "gateDecision": { ... }
+}
+```
+
 ## Environment Variables
 
 ### Required
