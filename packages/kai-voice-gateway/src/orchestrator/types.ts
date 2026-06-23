@@ -87,6 +87,15 @@ export interface TaskActionRequest {
   context?: Record<string, unknown>;
 }
 
+/** Gate decision metadata included in API responses where useful */
+export interface GateDecisionSummary {
+  riskLevel: string;
+  requiresConfirmation: boolean;
+  requiresAdminApproval: boolean;
+  reason: string;
+  recommendedFallback: string;
+}
+
 export interface OrchestratorResponse {
   message: string;
   task?: KaiTask;
@@ -95,6 +104,8 @@ export interface OrchestratorResponse {
   explanation?: string;
   nextRecommendation?: string;
   requiresConfirmation?: boolean;
+  /** Phase 4: Gate decision metadata for blocked/denied/high-risk actions */
+  gateDecision?: GateDecisionSummary;
 }
 
 /** Safe actions Kai can auto-execute in v1 */
@@ -123,6 +134,12 @@ export const BLOCKED_ACTIONS_V1 = new Set([
   'send_external_email',
   'change_compliance_settings',
   'modify_security_rules',
+  // Phase 4 additions
+  'grant_admin',
+  'revoke_access',
+  'transfer_funds',
+  'delete_database',
+  'truncate_table',
 ]);
 
 /** Actions that require confirmation even if technically safe */
