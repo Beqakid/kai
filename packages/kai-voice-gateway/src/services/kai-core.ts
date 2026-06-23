@@ -1,14 +1,12 @@
 // ── KaiCoreService — Safe, Context-Aware AI Response Engine ──
 //
-// This is the Kai Core placeholder that generates safe, contextual responses.
-// It enforces the Kai Voice v1 safety rules and can be replaced by the
-// full Kai Core engine in a future phase.
-//
-// Phase 3: Integrated with ActionReceiptLogger — every blocked action,
-// risk warning, and explanation creates an auditable receipt.
+// Phase 4: Sensitive natural-language requests route through
+// the KaiPermissionGate before any response is generated.
+// Phase 3: Integrated with ActionReceiptLogger for auditable receipts.
 
 import { AppId, UserRole, RiskLevel, KaiCoreResponse } from '../types';
 import { ActionReceiptLogger } from './action-receipt-logger';
+import { KaiPermissionGate } from './kai-permission-gate';
 
 // ── BLOCKED ACTIONS — Kai Voice v1 cannot perform these ──
 
@@ -31,17 +29,6 @@ const BLOCKED_ACTIONS = new Set([
   'revoke_access',
   'approve_withdrawal',
 ]);
-
-// Patterns that indicate a sensitive request in natural language
-const SENSITIVE_PATTERNS = [
-  /\b(delete|remove|drop)\s+(all\s+)?(user|account|data|table|database)/i,
-  /\b(process|make|issue)\s+(a\s+)?(payment|refund|payout|transfer)/i,
-  /\b(change|update|modify)\s+(bank|payout|billing)\s*(detail|info|account)/i,
-  /\b(deploy|push)\s+(to\s+)?(prod|production|live)/i,
-  /\b(approve|verify)\s+(background|identity|id)\s*(check|verification)/i,
-  /\b(grant|give)\s+(admin|superadmin|root)\s*(access|role|permission)/i,
-  /\b(truncate|wipe|purge)\s+(table|data|record)/i,
-];
 
 // ── CONTEXT-AWARE RESPONSE TEMPLATES ──
 
@@ -175,22 +162,46 @@ export interface KaiCoreContext {
 
 export class KaiCoreService {
   private readonly receiptLogger: ActionReceiptLogger | undefined;
+  private readonly gate: KaiPermissionGate;
 
   constructor(receiptLogger?: ActionReceiptLogger) {
     this.receiptLogger = receiptLogger;
+    this.gate = new KaiPermissionGate(receiptLogger);
   }
 
   /**
    * Process a voice request and return a safe, contextual response.
-   * Enforces safety rules before generating any response.
+   * Phase 4: Routes sensitive NL requests through the permission gate.
    */
   processRequest(params: KaiCoreContext): KaiCoreResponse {
     const { transcript, appId, userRole, currentScreen, allowedActions } = params;
 
-    // ── Step 1: Check for blocked actions ──
+    // ── Phase 4: Gate check for sensitive NL requests ──
+    const gateResult = this.gate.evaluateNaturalLanguage({
+      transcript,
+      appId,
+      userId: params.userId,
+      userRole,
+      sessionId: params.sessionId,
+    });
+
+    if (gateResult) {
+      // Gate detected a sensitive request — return gate-style denial
+      const riskLevel: RiskLevel = gateResult.riskLevel === 'blocked' ? 'blocked' : 'high';
+      return {
+        responseText: gateResult.riskLevel === 'blocked'
+          ? `I can't perform that action through voice. ${gateResult.reason} ${gateResult.recommendedFallback}`
+          : `That request involves high-risk operations. ${gateResult.reason} ${gateResult.recommendedFallback}`,
+        riskLevel,
+        requiresConfirmation: gateResult.requiresAdminApproval,
+        suggestedActions: [gateResult.recommendedFallback],
+        actions: [],
+      };
+    }
+
+    // ── Step 1: Check for blocked actions in allowedActions list ──
     const blockedCheck = this.checkBlockedActions(transcript, allowedActions);
     if (blockedCheck) {
-      // Fire-and-forget receipt logging for blocked/risk-warning
       this.logBlockedOrWarning(params, blockedCheck);
       return blockedCheck;
     }
@@ -241,7 +252,7 @@ export class KaiCoreService {
 
   private logExplanationReceipt(ctx: KaiCoreContext, response: KaiCoreResponse): void {
     if (!this.receiptLogger) return;
-    if (response.riskLevel !== 'safe') return; // only log safe explanations here
+    if (response.riskLevel !== 'safe') return;
 
     this.receiptLogger.logExplanation({
       appId: ctx.appId,
@@ -276,25 +287,6 @@ export class KaiCoreService {
         suggestedActions: ['Use the platform UI for this action'],
         actions: [],
       };
-    }
-
-    // Check transcript for sensitive intent
-    for (const pattern of SENSITIVE_PATTERNS) {
-      if (pattern.test(transcript)) {
-        return {
-          responseText:
-            "I understand what you're asking, but that action requires manual confirmation " +
-            "through the platform UI. I can't perform sensitive operations through voice " +
-            'commands for safety. Would you like me to guide you to the right screen instead?',
-          riskLevel: 'high',
-          requiresConfirmation: true,
-          suggestedActions: [
-            'Navigate to the appropriate screen',
-            'Use the platform UI to complete this action',
-          ],
-          actions: [],
-        };
-      }
     }
 
     return null;

@@ -1,16 +1,19 @@
 // ── Kai Task Orchestrator — Core Engine ──
 //
-// Phase 3: Integrated with ActionReceiptLogger — every recommendation,
-// action, status change, and generated output creates an auditable receipt.
+// Phase 4: All actions pass through the KaiPermissionGate before
+// preparation, execution, blocking, or logging.
+// Phase 3: Integrated with ActionReceiptLogger for auditable receipts.
 
 import { D1Database } from '../types';
 import { ActionReceiptLogger } from '../services/action-receipt-logger';
+import { KaiPermissionGate, GateDecision } from '../services/kai-permission-gate';
 import { TaskStore } from './task-store';
 import {
   KaiTask,
   CreateTaskRequest,
   TaskActionRequest,
   OrchestratorResponse,
+  GateDecisionSummary,
   TaskPriority,
   TaskStatus,
   BLOCKED_ACTIONS_V1,
@@ -27,13 +30,26 @@ export interface OrchestratorReceiptContext {
   sessionId?: string;
 }
 
+/** Convert a GateDecision to the API-facing summary */
+function toGateDecisionSummary(d: GateDecision): GateDecisionSummary {
+  return {
+    riskLevel: d.riskLevel,
+    requiresConfirmation: d.requiresConfirmation,
+    requiresAdminApproval: d.requiresAdminApproval,
+    reason: d.reason,
+    recommendedFallback: d.recommendedFallback,
+  };
+}
+
 export class KaiTaskOrchestrator {
   private readonly store: TaskStore;
   private readonly receiptLogger: ActionReceiptLogger;
+  private readonly gate: KaiPermissionGate;
 
   constructor(db: D1Database | undefined) {
     this.store = new TaskStore(db);
     this.receiptLogger = new ActionReceiptLogger(db);
+    this.gate = new KaiPermissionGate(this.receiptLogger);
   }
 
   // ── GET /api/kai/tasks ──
@@ -51,7 +67,6 @@ export class KaiTaskOrchestrator {
       ...groups.low,
     ];
 
-    // Filter if requested
     let filtered = allTasks;
     if (filters?.appId) filtered = filtered.filter(t => t.appId === filters.appId);
     if (filters?.status) filtered = filtered.filter(t => t.status === filters.status);
@@ -126,47 +141,52 @@ export class KaiTaskOrchestrator {
     req: TaskActionRequest,
     receiptCtx?: OrchestratorReceiptContext,
   ): Promise<OrchestratorResponse> {
-    // Safety check
-    const safety = validateActionSafety(req.actionType);
-    if (!safety.safe) {
-      // Log blocked action receipt
-      if (receiptCtx) {
-        this.receiptLogger.logBlockedAction({
-          appId: receiptCtx.appId,
-          userId: receiptCtx.userId,
-          userRole: receiptCtx.userRole,
-          sessionId: receiptCtx.sessionId,
-          source: 'task-orchestrator',
-          actionType: req.actionType,
-          userIntent: `Execute action: ${req.actionType}`,
-          blockedReason: safety.reason || 'Action blocked in Kai v1',
-          riskLevel: 'blocked',
-          taskId,
-        }).catch(() => {});
-      }
+    // ── Phase 4: Route through the Permission Gate ──
+    const gateInput = {
+      appId: receiptCtx?.appId || 'unknown',
+      userId: receiptCtx?.userId || req.userId,
+      userRole: receiptCtx?.userRole || 'viewer',
+      actionType: req.actionType,
+      requestedAction: `Execute action: ${req.actionType}`,
+      taskId,
+      taskRiskLevel: undefined as string | undefined,
+      sessionId: receiptCtx?.sessionId,
+      source: 'task-orchestrator',
+    };
 
-      return {
-        message: `⛔ ${safety.reason}`,
-        requiresConfirmation: false,
-      };
-    }
-
-    if (!SAFE_ACTIONS.has(req.actionType)) {
-      return {
-        message: `Action "${req.actionType}" is not in the approved safe actions list for v1.`,
-        requiresConfirmation: false,
-      };
-    }
-
+    // Try to get task risk level for gate evaluation
     const task = await this.store.getTaskById(taskId);
     if (!task) {
       return { message: `Task "${taskId}" not found.` };
     }
+    gateInput.taskRiskLevel = task.riskLevel;
 
-    // Execute
+    const gateDecision = this.gate.evaluate(gateInput);
+    const gateMeta = this.gate.toGateMetadata(gateDecision);
+
+    // ── Gate denied: blocked or high-risk ──
+    if (!gateDecision.allowed) {
+      // Receipt already logged by the gate for denied actions
+      return {
+        message: `⛔ ${gateDecision.reason}`,
+        requiresConfirmation: false,
+        gateDecision: toGateDecisionSummary(gateDecision),
+      };
+    }
+
+    // ── Gate allowed but action not in SAFE_ACTIONS registry ──
+    if (!SAFE_ACTIONS.has(req.actionType)) {
+      return {
+        message: `Action "${req.actionType}" is not in the approved safe actions list for v1.`,
+        requiresConfirmation: false,
+        gateDecision: toGateDecisionSummary(gateDecision),
+      };
+    }
+
+    // Execute the action
     const result = executeSafeAction(req.actionType, task, req.context);
 
-    if (result.requiresConfirmation) {
+    if (result.requiresConfirmation || gateDecision.requiresConfirmation) {
       // Log as pending
       const action = await this.store.logAction({
         taskId,
@@ -177,7 +197,7 @@ export class KaiTaskOrchestrator {
         result: result.output,
       });
 
-      // Log prepared action receipt
+      // Log prepared action receipt with gate metadata
       if (receiptCtx) {
         this.receiptLogger.logPreparedAction({
           appId: receiptCtx.appId,
@@ -188,14 +208,14 @@ export class KaiTaskOrchestrator {
           taskId,
           actionType: req.actionType,
           actionSummary: `Pending confirmation: ${req.actionType} for "${task.title}"`,
-          riskLevel: task.riskLevel,
+          riskLevel: gateDecision.riskLevel,
           requiresConfirmation: true,
           approvalStatus: 'pending',
+          metadata: gateMeta,
         }).catch(() => {});
       }
 
-      // Log generated output receipt for specific types
-      this.logGeneratedOutputReceipt(req.actionType, task, receiptCtx);
+      this.logGeneratedOutputReceipt(req.actionType, task, receiptCtx, gateMeta);
 
       return {
         message: `Action "${req.actionType}" drafted for "${task.title}". Please review and confirm.`,
@@ -203,6 +223,7 @@ export class KaiTaskOrchestrator {
         action,
         requiresConfirmation: true,
         explanation: result.output,
+        gateDecision: toGateDecisionSummary(gateDecision),
       };
     }
 
@@ -216,7 +237,7 @@ export class KaiTaskOrchestrator {
       result: result.output,
     });
 
-    // Log executed action receipt
+    // Log executed action receipt with gate metadata
     if (receiptCtx) {
       this.receiptLogger.logExecutedAction({
         appId: receiptCtx.appId,
@@ -227,13 +248,13 @@ export class KaiTaskOrchestrator {
         taskId,
         actionType: req.actionType,
         actionSummary: `Executed: ${req.actionType} for "${task.title}"`,
-        riskLevel: task.riskLevel,
+        riskLevel: gateDecision.riskLevel,
         kaiResponse: result.output,
+        metadata: gateMeta,
       }).catch(() => {});
     }
 
-    // Log generated output receipt for specific types
-    this.logGeneratedOutputReceipt(req.actionType, task, receiptCtx);
+    this.logGeneratedOutputReceipt(req.actionType, task, receiptCtx, gateMeta);
 
     // Update task status if appropriate
     if (req.actionType === 'update_status') {
@@ -245,6 +266,7 @@ export class KaiTaskOrchestrator {
       task,
       action,
       explanation: result.output,
+      gateDecision: toGateDecisionSummary(gateDecision),
     };
   }
 
@@ -260,8 +282,25 @@ export class KaiTaskOrchestrator {
     const explanation = this.explainTopTask(task);
     const suggestedAction = task.suggestedAction || 'generate_tasklet_prompt';
 
+    // ── Phase 4: Pre-evaluate the suggested action through the gate ──
+    let gateDecision: GateDecision | undefined;
+    if (receiptCtx) {
+      gateDecision = this.gate.evaluate({
+        appId: receiptCtx.appId,
+        userId: receiptCtx.userId,
+        userRole: receiptCtx.userRole,
+        actionType: suggestedAction,
+        requestedAction: `Recommended action: ${suggestedAction}`,
+        taskId: task.id,
+        taskRiskLevel: task.riskLevel,
+        sessionId: receiptCtx.sessionId,
+        source: 'task-orchestrator',
+      });
+    }
+
     // Log recommendation receipt
     if (receiptCtx) {
+      const gateMeta = gateDecision ? this.gate.toGateMetadata(gateDecision) : undefined;
       this.receiptLogger.logRecommendation({
         appId: receiptCtx.appId,
         userId: receiptCtx.userId,
@@ -270,10 +309,21 @@ export class KaiTaskOrchestrator {
         source: 'task-orchestrator',
         taskId: task.id,
         actionSummary: `Recommended top task: "${task.title}" — ${suggestedAction}`,
-        riskLevel: task.riskLevel,
-        requiresConfirmation: task.riskLevel !== 'low',
+        riskLevel: gateDecision?.riskLevel || task.riskLevel,
+        requiresConfirmation: gateDecision?.requiresConfirmation ?? task.riskLevel !== 'low',
+        metadata: gateMeta,
       }).catch(() => {});
     }
+
+    const riskInfo = gateDecision
+      ? (gateDecision.allowed
+        ? (gateDecision.requiresConfirmation
+          ? `This requires your confirmation (risk: ${gateDecision.riskLevel}).`
+          : 'This is a low-risk action — I can execute it now.')
+        : `⚠️ ${gateDecision.reason}`)
+      : (task.riskLevel === 'low'
+        ? 'This is a low-risk action — I can execute it now.'
+        : `This requires your confirmation (risk: ${task.riskLevel}).`);
 
     return {
       message: [
@@ -281,16 +331,15 @@ export class KaiTaskOrchestrator {
         explanation,
         '',
         `Recommended next action: **${suggestedAction}**.`,
-        task.riskLevel === 'low'
-          ? 'This is a low-risk action — I can execute it now.'
-          : `This requires your confirmation (risk: ${task.riskLevel}).`,
+        riskInfo,
         '',
         'Say "go ahead" to proceed, "skip this" to move on, or "show me more".',
       ].join('\n'),
       task,
       explanation,
       nextRecommendation: suggestedAction,
-      requiresConfirmation: task.riskLevel !== 'low',
+      requiresConfirmation: gateDecision?.requiresConfirmation ?? task.riskLevel !== 'low',
+      gateDecision: gateDecision ? toGateDecisionSummary(gateDecision) : undefined,
     };
   }
 
@@ -311,7 +360,6 @@ export class KaiTaskOrchestrator {
           approvalStatus: 'auto',
         });
 
-        // Log task status change receipt
         if (receiptCtx) {
           this.receiptLogger.logTaskStatusChange({
             appId: receiptCtx.appId,
@@ -325,7 +373,6 @@ export class KaiTaskOrchestrator {
           }).catch(() => {});
         }
 
-        // Get the next one
         const next = await this.store.getTopActionableTask();
         if (next) {
           return {
@@ -352,7 +399,6 @@ export class KaiTaskOrchestrator {
           approvalStatus: 'auto',
         });
 
-        // Log task status change receipt
         if (receiptCtx) {
           this.receiptLogger.logTaskStatusChange({
             appId: receiptCtx.appId,
@@ -381,8 +427,35 @@ export class KaiTaskOrchestrator {
       if (!task) return { message: 'No actionable tasks remaining.' };
 
       const actionType = (task.suggestedAction as any) || 'generate_tasklet_prompt';
+
+      // ── Phase 4: Gate check before executing via doNext ──
       if (SAFE_ACTIONS.has(actionType)) {
+        // executeAction will run the gate internally
         return this.executeAction(task.id, { actionType, userId }, receiptCtx);
+      }
+
+      // Not a safe action — gate it explicitly
+      if (receiptCtx) {
+        const gateDecision = this.gate.evaluate({
+          appId: receiptCtx.appId,
+          userId: receiptCtx.userId,
+          userRole: receiptCtx.userRole,
+          actionType,
+          requestedAction: `doNext: ${actionType}`,
+          taskId: task.id,
+          taskRiskLevel: task.riskLevel,
+          sessionId: receiptCtx.sessionId,
+          source: 'task-orchestrator',
+        });
+
+        if (!gateDecision.allowed) {
+          return {
+            message: `⛔ ${gateDecision.reason}`,
+            task,
+            requiresConfirmation: false,
+            gateDecision: toGateDecisionSummary(gateDecision),
+          };
+        }
       }
 
       return {
@@ -446,6 +519,11 @@ export class KaiTaskOrchestrator {
     return this.receiptLogger;
   }
 
+  // ── Permission gate accessor (for the API route / tests) ──
+  getPermissionGate(): KaiPermissionGate {
+    return this.gate;
+  }
+
   // ── Helpers ──
 
   /** Log generated output receipt for specific action types. */
@@ -453,6 +531,7 @@ export class KaiTaskOrchestrator {
     actionType: string,
     task: KaiTask,
     receiptCtx?: OrchestratorReceiptContext,
+    gateMeta?: Record<string, unknown>,
   ): void {
     if (!receiptCtx) return;
 
@@ -479,6 +558,7 @@ export class KaiTaskOrchestrator {
       actionType,
       actionSummary: `Generated ${actionType} for "${task.title}"`,
       riskLevel: task.riskLevel,
+      metadata: gateMeta,
     }).catch(() => {});
   }
 

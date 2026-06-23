@@ -153,6 +153,77 @@ curl -H "Authorization: Bearer $JWT" \
   "https://kai.example.com/api/kai/action-receipts?riskLevel=blocked&page=1"
 ```
 
+## Kai Permission and Risk Gate (Phase 4)
+
+Every Kai action must pass through the **KaiPermissionGate** before it is prepared, executed, blocked, escalated, or logged. The gate is the central safety layer between user intent and Kai action execution.
+
+### What the Gate Does
+
+The gate evaluates every action request and returns a decision with:
+- **allowed** — whether the action may proceed
+- **riskLevel** — `low`, `medium`, `high`, or `blocked`
+- **requiresConfirmation** — whether the user must confirm before execution
+- **requiresAdminApproval** — whether manual admin approval is needed
+- **reason** — human-readable explanation
+- **recommendedFallback** — what the user should do instead (if denied)
+
+### Why It Exists
+
+Before Phase 4, safety checks were spread across multiple services (KaiCoreService, safe-actions, orchestrator). The gate centralizes all permission and risk decisions into a single evaluator, ensuring:
+- No action bypasses safety checks
+- Consistent risk classification across all entry points
+- Every denied action creates an auditable receipt
+- Client-provided `allowedActions` are never trusted (server-side intersection only)
+
+### Risk Classification
+
+| Risk Level | Actions | Behavior |
+|---|---|---|
+| **Low** | `generate_tasklet_prompt`, `summarize_blockers`, `draft_admin_note`, `mark_reviewed` | Auto-execute |
+| **Medium** | `draft_github_issue`, `draft_user_message`, `update_status`, `create_task` | Requires user confirmation |
+| **High** | `change_user_permissions`, `modify_production_state`, `bulk_update_records`, etc. | Requires admin approval; **does not execute** in Kai v1 |
+| **Blocked** | `deploy_code`, `process_payment`, `delete_user`, `grant_admin`, `transfer_funds`, `truncate_table`, + 11 more | **Always denied**; permanently blocked |
+
+### Blocked Actions (17 total)
+
+`deploy_code`, `modify_production_schema`, `delete_user`, `process_payment`, `issue_refund`, `change_payout`, `change_bank_details`, `approve_background_check`, `approve_identity_verification`, `send_external_email`, `change_compliance_settings`, `modify_security_rules`, `grant_admin`, `revoke_access`, `transfer_funds`, `delete_database`, `truncate_table`
+
+### Where the Gate Is Applied
+
+1. **`KaiTaskOrchestrator.executeAction()`** — before any safe action executes
+2. **`KaiTaskOrchestrator.doNext()`** — before "go ahead" / "continue" / "do it" runs
+3. **`KaiTaskOrchestrator.helpMeOut()`** — pre-evaluates the suggested action
+4. **`KaiCoreService.processRequest()`** — sensitive NL requests route through the gate
+5. **`ActionReceiptLogger`** — receipts include gate decision metadata (`gateAllowed`, `gateRiskLevel`, `gateReason`, `gateRequiresConfirmation`, `gateRequiresAdminApproval`)
+
+### How This Prepares Kai for ProofTrust
+
+The gate is the foundation for the future ProofTrust Engine:
+- Every gate decision is recorded as a receipt → full audit trail
+- Risk classification can be refined as Kai capabilities expand
+- The confirmation/approval flow maps directly to ProofTrust verification chains
+- Gate metadata in receipts enables compliance reporting and risk analysis
+
+### Why Sensitive Actions Remain Blocked
+
+Kai v1 is a voice-first assistant. Sensitive operations (payments, user deletion, deploys, etc.) require multi-factor verification, audit trails, and human-in-the-loop confirmation that cannot be safely provided through voice commands alone. These will only be unblocked when the full ProofTrust Engine provides cryptographic verification and multi-party approval.
+
+### API Response Gate Metadata
+
+When an action is evaluated by the gate, the API response includes:
+
+```json
+{
+  "gateDecision": {
+    "riskLevel": "medium",
+    "requiresConfirmation": true,
+    "requiresAdminApproval": false,
+    "reason": "Action requires confirmation before execution.",
+    "recommendedFallback": "Review the drafted output before confirming."
+  }
+}
+```
+
 ## Environment Variables
 
 ### Required
