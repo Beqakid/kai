@@ -110,8 +110,8 @@ export class KaiVoiceGateway {
     }
 
     // Extract audio file
-    const audioFile = formData.get('audio');
-    if (!audioFile || !(audioFile instanceof File)) {
+    const audioFile = formData.get("audio") as unknown as File | null;
+    if (!audioFile) {
       throw Errors.missingAudio();
     }
 
