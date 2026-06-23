@@ -1,12 +1,13 @@
 // ── Kai Task Orchestrator — Core Engine ──
 //
-// Phase 4: All actions pass through the KaiPermissionGate before
-// preparation, execution, blocking, or logging.
+// Phase 5: Medium-risk actions enter pending confirmation workflow.
+// Phase 4: All actions pass through the KaiPermissionGate.
 // Phase 3: Integrated with ActionReceiptLogger for auditable receipts.
 
 import { D1Database } from '../types';
 import { ActionReceiptLogger } from '../services/action-receipt-logger';
 import { KaiPermissionGate, GateDecision } from '../services/kai-permission-gate';
+import { PendingActionStore, PendingActionRow } from '../services/pending-action-store';
 import { TaskStore } from './task-store';
 import {
   KaiTask,
@@ -45,11 +46,13 @@ export class KaiTaskOrchestrator {
   private readonly store: TaskStore;
   private readonly receiptLogger: ActionReceiptLogger;
   private readonly gate: KaiPermissionGate;
+  private readonly pendingStore: PendingActionStore;
 
   constructor(db: D1Database | undefined) {
     this.store = new TaskStore(db);
     this.receiptLogger = new ActionReceiptLogger(db);
     this.gate = new KaiPermissionGate(this.receiptLogger);
+    this.pendingStore = new PendingActionStore(db);
   }
 
   // ── GET /api/kai/tasks ──
@@ -183,11 +186,27 @@ export class KaiTaskOrchestrator {
       };
     }
 
-    // Execute the action
+    // Execute the action to get prepared output
     const result = executeSafeAction(req.actionType, task, req.context);
 
-    if (result.requiresConfirmation || gateDecision.requiresConfirmation) {
-      // Log as pending
+    // ── Phase 5: Medium-risk → pending confirmation workflow ──
+    if (gateDecision.requiresConfirmation) {
+      // Create pending action
+      const pendingAction = await this.pendingStore.createPendingAction({
+        appId: receiptCtx?.appId || 'unknown',
+        userId: receiptCtx?.userId || req.userId,
+        userRole: receiptCtx?.userRole || 'viewer',
+        sessionId: receiptCtx?.sessionId,
+        taskId,
+        actionType: req.actionType,
+        actionSummary: `Pending confirmation: ${req.actionType} for "${task.title}"`,
+        preparedOutput: result.output,
+        riskLevel: gateDecision.riskLevel,
+        gateDecision,
+        metadata: gateMeta,
+      });
+
+      // Log the action in task history as pending
       const action = await this.store.logAction({
         taskId,
         userId: req.userId,
@@ -211,23 +230,26 @@ export class KaiTaskOrchestrator {
           riskLevel: gateDecision.riskLevel,
           requiresConfirmation: true,
           approvalStatus: 'pending',
-          metadata: gateMeta,
+          metadata: { ...gateMeta, pendingActionId: pendingAction.id },
         }).catch(() => {});
       }
 
       this.logGeneratedOutputReceipt(req.actionType, task, receiptCtx, gateMeta);
 
       return {
-        message: `Action "${req.actionType}" drafted for "${task.title}". Please review and confirm.`,
+        message: `Action "${req.actionType}" prepared for "${task.title}". Confirm or deny within ${Math.round((new Date(pendingAction.expires_at).getTime() - Date.now()) / 60000)} minutes.`,
         task,
         action,
         requiresConfirmation: true,
         explanation: result.output,
         gateDecision: toGateDecisionSummary(gateDecision),
+        pendingActionId: pendingAction.id,
+        pendingActionStatus: 'pending',
+        expiresAt: pendingAction.expires_at,
       };
     }
 
-    // Auto-execute low-risk action
+    // ── Low-risk: Auto-execute ──
     const action = await this.store.logAction({
       taskId,
       userId: req.userId,
@@ -505,6 +527,158 @@ export class KaiTaskOrchestrator {
     return this.helpMeOut(userId, receiptCtx);
   }
 
+  // ── Phase 5: Confirm a pending action ──
+  async confirmPendingAction(
+    pendingActionId: string,
+    receiptCtx: OrchestratorReceiptContext,
+  ): Promise<OrchestratorResponse> {
+    // Step 1: Confirm in the pending store (checks ownership/expiration)
+    const confirmResult = await this.pendingStore.confirmPendingAction(
+      pendingActionId,
+      { userId: receiptCtx.userId, userRole: receiptCtx.userRole },
+    );
+
+    if (!confirmResult.success || !confirmResult.pendingAction) {
+      // If expired, log an expiration receipt
+      if (confirmResult.pendingAction?.status === 'expired') {
+        this.logExpiredReceipt(confirmResult.pendingAction, receiptCtx);
+      }
+      return {
+        message: `⛔ ${confirmResult.reason}`,
+        pendingActionStatus: confirmResult.pendingAction?.status,
+      };
+    }
+
+    const pa = confirmResult.pendingAction;
+
+    // Step 2: Re-run the Permission Gate before executing
+    const gateDecision = this.gate.evaluate({
+      appId: pa.app_id,
+      userId: receiptCtx.userId,
+      userRole: receiptCtx.userRole,
+      actionType: pa.action_type,
+      requestedAction: `Confirm pending action: ${pa.action_type}`,
+      taskId: pa.task_id || undefined,
+      sessionId: pa.session_id || undefined,
+      source: 'pending-confirmation',
+    });
+
+    // Step 3: If gate decision changed (no longer allowed or risk escalated), block
+    if (!gateDecision.allowed) {
+      // Revert to denied since gate no longer allows it
+      await this.pendingStore.denyPendingAction(
+        pendingActionId,
+        { userId: 'system', userRole: 'super-admin' },
+      );
+
+      this.receiptLogger.logDeniedAction({
+        appId: pa.app_id,
+        userId: pa.user_id,
+        userRole: pa.user_role,
+        sessionId: pa.session_id || undefined,
+        source: 'pending-confirmation',
+        taskId: pa.task_id || undefined,
+        actionType: pa.action_type,
+        actionSummary: `Gate re-evaluation denied: ${pa.action_type}`,
+        riskLevel: gateDecision.riskLevel,
+        pendingActionId: pa.id,
+        deniedBy: 'system-gate-recheck',
+      }).catch(() => {});
+
+      return {
+        message: `⛔ Gate re-evaluation denied this action: ${gateDecision.reason}`,
+        pendingActionStatus: 'denied',
+        gateDecision: toGateDecisionSummary(gateDecision),
+      };
+    }
+
+    // Step 4: Execute the action
+    await this.pendingStore.markExecuted(pendingActionId);
+
+    // Log confirmed receipt
+    this.receiptLogger.logConfirmedAction({
+      appId: pa.app_id,
+      userId: pa.user_id,
+      userRole: pa.user_role,
+      sessionId: pa.session_id || undefined,
+      source: 'pending-confirmation',
+      taskId: pa.task_id || undefined,
+      actionType: pa.action_type,
+      actionSummary: `Confirmed and executed: ${pa.action_type}`,
+      riskLevel: pa.risk_level,
+      pendingActionId: pa.id,
+      confirmedBy: receiptCtx.userId,
+    }).catch(() => {});
+
+    // Log executed receipt
+    this.receiptLogger.logExecutedAction({
+      appId: pa.app_id,
+      userId: pa.user_id,
+      userRole: pa.user_role,
+      sessionId: pa.session_id || undefined,
+      source: 'pending-confirmation',
+      taskId: pa.task_id || undefined,
+      actionType: pa.action_type,
+      actionSummary: `Executed after confirmation: ${pa.action_type}`,
+      riskLevel: pa.risk_level,
+      kaiResponse: pa.prepared_output || undefined,
+      metadata: {
+        pendingActionId: pa.id,
+        confirmedBy: receiptCtx.userId,
+        ...this.gate.toGateMetadata(gateDecision),
+      },
+    }).catch(() => {});
+
+    return {
+      message: `✅ Action "${pa.action_type}" confirmed and executed.`,
+      explanation: pa.prepared_output || undefined,
+      pendingActionId: pa.id,
+      pendingActionStatus: 'executed',
+      gateDecision: toGateDecisionSummary(gateDecision),
+    };
+  }
+
+  // ── Phase 5: Deny a pending action ──
+  async denyPendingAction(
+    pendingActionId: string,
+    receiptCtx: OrchestratorReceiptContext,
+  ): Promise<OrchestratorResponse> {
+    const denyResult = await this.pendingStore.denyPendingAction(
+      pendingActionId,
+      { userId: receiptCtx.userId, userRole: receiptCtx.userRole },
+    );
+
+    if (!denyResult.success || !denyResult.pendingAction) {
+      return {
+        message: `⛔ ${denyResult.reason}`,
+        pendingActionStatus: denyResult.pendingAction?.status,
+      };
+    }
+
+    const pa = denyResult.pendingAction;
+
+    // Log denial receipt
+    this.receiptLogger.logDeniedAction({
+      appId: pa.app_id,
+      userId: pa.user_id,
+      userRole: pa.user_role,
+      sessionId: pa.session_id || undefined,
+      source: 'pending-confirmation',
+      taskId: pa.task_id || undefined,
+      actionType: pa.action_type,
+      actionSummary: `Denied: ${pa.action_type}`,
+      riskLevel: pa.risk_level,
+      pendingActionId: pa.id,
+      deniedBy: receiptCtx.userId,
+    }).catch(() => {});
+
+    return {
+      message: `Action "${pa.action_type}" has been denied.`,
+      pendingActionId: pa.id,
+      pendingActionStatus: 'denied',
+    };
+  }
+
   // ── Get recent actions for the history log ──
   async getRecentActions(limit = 20): Promise<OrchestratorResponse> {
     const actions = await this.store.getRecentActions(limit);
@@ -524,7 +698,28 @@ export class KaiTaskOrchestrator {
     return this.gate;
   }
 
+  // ── Pending action store accessor (for the API route) ──
+  getPendingStore(): PendingActionStore {
+    return this.pendingStore;
+  }
+
   // ── Helpers ──
+
+  /** Log expiration receipt (fire-and-forget) */
+  private logExpiredReceipt(pa: PendingActionRow, receiptCtx: OrchestratorReceiptContext): void {
+    this.receiptLogger.logExpiredAction({
+      appId: pa.app_id,
+      userId: pa.user_id,
+      userRole: pa.user_role,
+      sessionId: pa.session_id || undefined,
+      source: 'pending-confirmation',
+      taskId: pa.task_id || undefined,
+      actionType: pa.action_type,
+      actionSummary: `Expired: ${pa.action_type}`,
+      riskLevel: pa.risk_level,
+      pendingActionId: pa.id,
+    }).catch(() => {});
+  }
 
   /** Log generated output receipt for specific action types. */
   private logGeneratedOutputReceipt(
