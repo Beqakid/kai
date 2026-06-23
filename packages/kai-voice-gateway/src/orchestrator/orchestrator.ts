@@ -8,6 +8,9 @@ import { D1Database } from '../types';
 import { ActionReceiptLogger } from '../services/action-receipt-logger';
 import { KaiPermissionGate, GateDecision } from '../services/kai-permission-gate';
 import { PendingActionStore, PendingActionRow } from '../services/pending-action-store';
+import { ProofTrustBridgeLite } from '../prooftrust/prooftrust-bridge';
+import type { ProofTrustRiskLevel } from '../prooftrust/types';
+import { mapKaiRiskToProofTrust } from '../prooftrust/types';
 import { TaskStore } from './task-store';
 import {
   KaiTask,
@@ -47,12 +50,16 @@ export class KaiTaskOrchestrator {
   private readonly receiptLogger: ActionReceiptLogger;
   private readonly gate: KaiPermissionGate;
   private readonly pendingStore: PendingActionStore;
+  private readonly proofTrustBridge: ProofTrustBridgeLite;
 
   constructor(db: D1Database | undefined) {
     this.store = new TaskStore(db);
     this.receiptLogger = new ActionReceiptLogger(db);
     this.gate = new KaiPermissionGate(this.receiptLogger);
     this.pendingStore = new PendingActionStore(db);
+    // Phase 7: Initialize ProofTrust Bridge and attach to gate
+    this.proofTrustBridge = new ProofTrustBridgeLite(this.receiptLogger, this.gate);
+    this.gate.setProofTrustBridge(this.proofTrustBridge);
   }
 
   // ── GET /api/kai/tasks ──
@@ -215,6 +222,20 @@ export class KaiTaskOrchestrator {
         approvalStatus: 'pending',
         result: result.output,
       });
+
+      // Phase 7: Notify ProofTrust bridge of prepared action
+      this.proofTrustBridge.recordPreparedAction({
+        appId: receiptCtx?.appId || 'unknown',
+        actorId: receiptCtx?.userId || req.userId,
+        actorRole: receiptCtx?.userRole || 'viewer',
+        actionType: req.actionType,
+        actionSummary: `Pending confirmation: ${req.actionType} for "${task.title}"`,
+        riskLevel: mapKaiRiskToProofTrust(gateDecision.riskLevel),
+        sessionId: receiptCtx?.sessionId,
+        taskId,
+        source: 'task-orchestrator',
+        metadata: { pendingActionId: pendingAction.id },
+      }).catch(() => {});
 
       // Log prepared action receipt with gate metadata
       if (receiptCtx) {
@@ -595,6 +616,10 @@ export class KaiTaskOrchestrator {
     // Step 4: Execute the action
     await this.pendingStore.markExecuted(pendingActionId);
 
+    // Phase 7: Notify ProofTrust bridge of confirmation + execution
+    this.notifyBridgeEvent(pa, 'confirmed', receiptCtx);
+    this.notifyBridgeEvent(pa, 'executed', receiptCtx);
+
     // Log confirmed receipt
     this.receiptLogger.logConfirmedAction({
       appId: pa.app_id,
@@ -657,6 +682,9 @@ export class KaiTaskOrchestrator {
 
     const pa = denyResult.pendingAction;
 
+    // Phase 7: Notify ProofTrust bridge of denial
+    this.notifyBridgeEvent(pa, 'denied', receiptCtx);
+
     // Log denial receipt
     this.receiptLogger.logDeniedAction({
       appId: pa.app_id,
@@ -703,10 +731,18 @@ export class KaiTaskOrchestrator {
     return this.pendingStore;
   }
 
+  // ── Phase 7: ProofTrust bridge accessor ──
+  getProofTrustBridge(): ProofTrustBridgeLite {
+    return this.proofTrustBridge;
+  }
+
   // ── Helpers ──
 
   /** Log expiration receipt (fire-and-forget) */
   private logExpiredReceipt(pa: PendingActionRow, receiptCtx: OrchestratorReceiptContext): void {
+    // Phase 7: Notify ProofTrust bridge of expiration
+    this.notifyBridgeEvent(pa, 'expired', receiptCtx);
+
     this.receiptLogger.logExpiredAction({
       appId: pa.app_id,
       userId: pa.user_id,
@@ -755,6 +791,39 @@ export class KaiTaskOrchestrator {
       riskLevel: task.riskLevel,
       metadata: gateMeta,
     }).catch(() => {});
+  }
+
+  /**
+   * Phase 7: Send a lifecycle event to the ProofTrust bridge.
+   * Fire-and-forget — never blocks the user operation.
+   */
+  private notifyBridgeEvent(
+    pa: PendingActionRow,
+    event: 'prepared' | 'confirmed' | 'denied' | 'expired' | 'executed',
+    receiptCtx: OrchestratorReceiptContext,
+  ): void {
+    const input = {
+      appId: pa.app_id,
+      actorId: pa.user_id,
+      actorRole: pa.user_role,
+      actionType: pa.action_type,
+      actionSummary: `${event}: ${pa.action_type}`,
+      riskLevel: mapKaiRiskToProofTrust(pa.risk_level) as ProofTrustRiskLevel,
+      sessionId: pa.session_id || undefined,
+      taskId: pa.task_id || undefined,
+      source: 'pending-confirmation',
+      metadata: { pendingActionId: pa.id },
+    };
+
+    const methodMap = {
+      prepared: () => this.proofTrustBridge.recordPreparedAction(input),
+      confirmed: () => this.proofTrustBridge.recordConfirmedAction(input),
+      denied: () => this.proofTrustBridge.recordDeniedAction(input),
+      expired: () => this.proofTrustBridge.recordExpiredAction(input),
+      executed: () => this.proofTrustBridge.recordExecutedAction(input),
+    };
+
+    methodMap[event]().catch(() => {});
   }
 
   private explainTopTask(task: KaiTask, weights?: any): string {
