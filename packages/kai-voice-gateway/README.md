@@ -1,0 +1,256 @@
+# Kai Voice Gateway
+
+Cloudflare Worker that powers Kai's voice interface across Jon Command Center, Carehia, Viliniu, and Volau.
+
+## Architecture
+
+```
+User taps orb → KaiVoiceOrb (React) → Kai Voice Gateway (CF Worker)
+                                        ├── Auth + Rate Limiting
+                                        ├── STT Provider (Cloudflare AI / Whisper / Deepgram)
+                                        ├── KaiCoreService (safety guardrails + intent detection)
+                                        ├── TTS Provider (Cloudflare AI / OpenAI / ElevenLabs)
+                                        ├── D1 Logging (sessions + interactions)
+                                        └── Response → Frontend plays audio + shows text
+```
+
+## Routes
+
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| POST | `/api/kai/voice/session` | ✅ | Create a voice session |
+| POST | `/api/kai/voice/transcribe` | ✅ | Transcribe audio to text |
+| POST | `/api/kai/voice/respond` | ✅ | Get Kai response + TTS audio |
+| GET | `/api/kai/voice/history` | ✅ Admin | Paginated voice interaction history |
+| GET | `/health` | ❌ | Health check |
+
+## Security
+
+### Authentication
+All voice routes require a `Bearer` token in the `Authorization` header. In production, set `KAI_AUTH_SECRET` and implement JWT verification.
+
+### Rate Limiting
+- 30 requests per user per minute (sliding window)
+- Returns HTTP 429 when exceeded
+
+### Audio Limits
+- **Max file size:** 10 MB
+- **Max duration:** 120 seconds (2 minutes)
+- Raw audio is **never stored** by default (`ENABLE_KAI_AUDIO_STORAGE=false`)
+
+### Server-Side Validation
+- `appId` must be one of: `jon-command-center`, `carehia`, `viliniu`, `volau`
+- `userRole` must be one of: `super-admin`, `admin`, `vendor`, `customer`, `viewer`
+- `allowedActions` are **intersected with the server-side registry** — client values are never trusted directly
+- Request body size is limited to 1 MB for JSON endpoints
+
+### Sensitive Action Blocklist
+Kai Voice v1 **cannot** perform:
+1. Process payments / issue refunds
+2. Change payout or bank details
+3. Delete users
+4. Approve background checks or identity verification
+5. Deploy to production
+6. Modify database schemas
+7. Grant/revoke admin access
+8. Transfer funds or modify billing
+
+### No-Background-Listening Guarantee
+- No wake word detection
+- No always-on microphone
+- No streaming audio endpoint
+- Recording starts **only** from explicit user tap
+- Audio is a discrete blob, not a stream
+
+## Environment Variables
+
+### Required
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `KAI_STT_PROVIDER` | STT engine | `cloudflare-ai` |
+| `KAI_TTS_PROVIDER` | TTS engine | `cloudflare-ai` |
+| `KAI_CORE_PROVIDER` | Kai response engine | `kai-core` |
+| `ENABLE_KAI_AUDIO_STORAGE` | Store raw audio in R2 | `false` |
+
+### Optional
+| Variable | Description |
+|----------|-------------|
+| `KAI_TTS_VOICE` | Voice name override (e.g. `en_us-female`) |
+| `KAI_TTS_LANGUAGE` | Language code (default: `en`) |
+| `KAI_TTS_SPEED` | Speech speed 0.5–2.0 (default: `1.0`) |
+
+### Secrets (set via `wrangler secret put`)
+| Secret | Required For |
+|--------|-------------|
+| `KAI_AUTH_SECRET` | JWT verification (production) |
+| `OPENAI_API_KEY` | `whisper` STT or `openai-tts` TTS |
+| `DEEPGRAM_API_KEY` | `deepgram` STT |
+| `ELEVENLABS_API_KEY` | `elevenlabs` TTS |
+
+## Provider Swap Instructions
+
+### STT Provider
+```toml
+# In wrangler.toml:
+KAI_STT_PROVIDER = "cloudflare-ai"  # Free, runs on edge
+# KAI_STT_PROVIDER = "whisper"      # OpenAI Whisper (needs OPENAI_API_KEY)
+# KAI_STT_PROVIDER = "deepgram"     # Deepgram (needs DEEPGRAM_API_KEY)
+# KAI_STT_PROVIDER = "mock"         # Returns mock transcript
+```
+
+### TTS Provider
+```toml
+KAI_TTS_PROVIDER = "cloudflare-ai"  # Free, MeloTTS on edge
+# KAI_TTS_PROVIDER = "openai-tts"   # OpenAI TTS (needs OPENAI_API_KEY)
+# KAI_TTS_PROVIDER = "elevenlabs"   # ElevenLabs (needs ELEVENLABS_API_KEY)
+# KAI_TTS_PROVIDER = "mock"         # Returns no audio
+```
+
+## D1 Database Setup
+
+```bash
+# Create the database
+wrangler d1 create kai-voice
+
+# Update wrangler.toml with the database_id from the output
+
+# Run the migration
+wrangler d1 execute kai-voice --file=./migrations/0001_kai_voice_tables.sql
+
+# For local development
+wrangler d1 execute kai-voice --local --file=./migrations/0001_kai_voice_tables.sql
+```
+
+### Tables
+- `kai_voice_sessions` — session metadata (app, user, role, providers, timestamps)
+- `kai_voice_interactions` — every voice interaction (transcript, response, risk level, providers, errors)
+
+## Deployment
+
+```bash
+# Install dependencies
+npm install
+
+# Local development
+wrangler dev
+
+# Deploy
+wrangler deploy
+
+# Set secrets
+wrangler secret put KAI_AUTH_SECRET
+wrangler secret put OPENAI_API_KEY
+```
+
+---
+
+## Frontend: KaiVoiceOrb
+
+### Props
+
+```tsx
+interface KaiVoiceOrbProps {
+  appId: string;          // 'jon-command-center' | 'carehia' | 'viliniu' | 'volau'
+  userId: string;         // Authenticated user ID
+  userRole: string;       // 'super-admin' | 'admin' | 'vendor' | 'customer' | 'viewer'
+  currentScreen: string;  // Current screen/page identifier
+  authToken: string;      // Bearer token for gateway auth
+  allowedActions: string[]; // Actions this user can perform (validated server-side)
+  gatewayUrl?: string;    // Gateway base URL (default: '/api/kai/voice')
+  useMockGateway?: boolean; // Use mock responses (default: true)
+  onStateChange?: (state: OrbState) => void;
+  onAudioCaptured?: (blob: Blob) => void;
+}
+```
+
+### Integration Examples
+
+#### Jon Command Center
+```tsx
+<KaiVoiceOrb
+  appId="jon-command-center"
+  userId={currentUser.id}
+  userRole={currentUser.role}
+  currentScreen="dashboard"
+  authToken={session.token}
+  allowedActions={['view', 'edit', 'manage-users', 'manage-vendors']}
+  gatewayUrl="https://kai-voice-gateway.your-domain.workers.dev/api/kai/voice"
+  useMockGateway={false}
+/>
+```
+
+#### Carehia Super Admin
+```tsx
+<KaiVoiceOrb
+  appId="carehia"
+  userId={admin.id}
+  userRole="super-admin"
+  currentScreen="clients"
+  authToken={admin.token}
+  allowedActions={['view', 'edit', 'manage-clients', 'manage-schedules']}
+  gatewayUrl="https://kai-voice-gateway.your-domain.workers.dev/api/kai/voice"
+  useMockGateway={false}
+/>
+```
+
+#### Viliniu Admin / Vendor
+```tsx
+// Admin
+<KaiVoiceOrb
+  appId="viliniu"
+  userId={admin.id}
+  userRole="admin"
+  currentScreen="products"
+  authToken={admin.token}
+  allowedActions={['view', 'edit', 'manage-products', 'manage-orders']}
+  gatewayUrl={GATEWAY_URL}
+  useMockGateway={false}
+/>
+
+// Vendor
+<KaiVoiceOrb
+  appId="viliniu"
+  userId={vendor.id}
+  userRole="vendor"
+  currentScreen="products"
+  authToken={vendor.token}
+  allowedActions={['view', 'edit', 'manage-products']}
+  gatewayUrl={GATEWAY_URL}
+  useMockGateway={false}
+/>
+```
+
+#### Volau Admin
+```tsx
+<KaiVoiceOrb
+  appId="volau"
+  userId={admin.id}
+  userRole="admin"
+  currentScreen="dashboard"
+  authToken={admin.token}
+  allowedActions={['view', 'edit', 'manage-users']}
+  gatewayUrl={GATEWAY_URL}
+  useMockGateway={false}
+/>
+```
+
+### Admin Voice History
+The `VoiceHistory` component is available for super-admin users:
+
+```tsx
+import { VoiceHistory } from './components/VoiceHistory';
+
+// Only render for super-admin
+{user.role === 'super-admin' && (
+  <VoiceHistory
+    gatewayUrl={GATEWAY_URL}
+    authToken={session.token}
+    userRole={user.role}
+    useMock={false}
+  />
+)}
+```
+
+Shows: timestamp, app, role, transcript, Kai response, providers, risk level, errors.
+Supports filtering by app and risk level.
+Non-admin users see an access denied message.

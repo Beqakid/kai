@@ -1,0 +1,374 @@
+// ── KaiCoreService — Safe, Context-Aware AI Response Engine ──
+//
+// This is the Kai Core placeholder that generates safe, contextual responses.
+// It enforces the Kai Voice v1 safety rules and can be replaced by the
+// full Kai Core engine in a future phase.
+
+import { AppId, UserRole, RiskLevel, KaiCoreResponse } from '../types';
+
+// ── BLOCKED ACTIONS — Kai Voice v1 cannot perform these ──
+
+const BLOCKED_ACTIONS = new Set([
+  'process_payment',
+  'issue_refund',
+  'change_payout',
+  'delete_user',
+  'approve_background_check',
+  'approve_identity_verification',
+  'change_bank_details',
+  'deploy_code',
+  'modify_production_schema',
+  'drop_table',
+  'truncate_table',
+  'delete_database',
+  'transfer_funds',
+  'modify_billing',
+  'grant_admin',
+  'revoke_access',
+  'approve_withdrawal',
+]);
+
+// Patterns that indicate a sensitive request in natural language
+const SENSITIVE_PATTERNS = [
+  /\b(delete|remove|drop)\s+(all\s+)?(user|account|data|table|database)/i,
+  /\b(process|make|issue)\s+(a\s+)?(payment|refund|payout|transfer)/i,
+  /\b(change|update|modify)\s+(bank|payout|billing)\s*(detail|info|account)/i,
+  /\b(deploy|push)\s+(to\s+)?(prod|production|live)/i,
+  /\b(approve|verify)\s+(background|identity|id)\s*(check|verification)/i,
+  /\b(grant|give)\s+(admin|superadmin|root)\s*(access|role|permission)/i,
+  /\b(truncate|wipe|purge)\s+(table|data|record)/i,
+];
+
+// ── CONTEXT-AWARE RESPONSE TEMPLATES ──
+
+interface AppContext {
+  greeting: string;
+  capabilities: string[];
+  screens: Record<string, string[]>;
+}
+
+const APP_CONTEXTS: Record<AppId, AppContext> = {
+  'jon-command-center': {
+    greeting: "I'm Kai, your Command Center assistant",
+    capabilities: [
+      'view platform overview and metrics',
+      'check vendor statuses across apps',
+      'review recent activity and alerts',
+      'navigate between apps',
+      'explain dashboard data',
+    ],
+    screens: {
+      dashboard: [
+        'view active vendors and users',
+        'check platform health metrics',
+        'review recent alerts',
+      ],
+      vendors: [
+        'search and filter vendors',
+        'view vendor profiles',
+        'check vendor compliance status',
+      ],
+      settings: [
+        'explain configuration options',
+        'guide through settings',
+      ],
+    },
+  },
+  carehia: {
+    greeting: "I'm Kai, your Carehia care platform assistant",
+    capabilities: [
+      'navigate care provider workflows',
+      'explain scheduling and availability',
+      'guide through client management',
+      'help with care plan reviews',
+      'answer platform questions',
+    ],
+    screens: {
+      dashboard: [
+        'view upcoming appointments',
+        'check client statuses',
+        'review care metrics',
+      ],
+      clients: [
+        'search client records',
+        'view care plans',
+        'check visit history',
+      ],
+      scheduling: [
+        'view schedules',
+        'explain availability rules',
+        'help with shift planning',
+      ],
+    },
+  },
+  viliniu: {
+    greeting: "I'm Kai, your Viliniu marketplace assistant",
+    capabilities: [
+      'guide vendor onboarding',
+      'explain product listing process',
+      'help with service setup',
+      'navigate storefront features',
+      'answer marketplace questions',
+    ],
+    screens: {
+      dashboard: [
+        'view sales overview',
+        'check order statuses',
+        'review vendor metrics',
+      ],
+      products: [
+        'search and manage products',
+        'explain listing requirements',
+        'help with pricing',
+      ],
+      orders: [
+        'view order details',
+        'explain order workflow',
+        'track fulfillment',
+      ],
+    },
+  },
+  volau: {
+    greeting: "I'm Kai, your Volau assistant",
+    capabilities: [
+      'navigate platform features',
+      'explain workflows and processes',
+      'guide through setup and configuration',
+      'answer general questions',
+    ],
+    screens: {
+      dashboard: [
+        'view key metrics',
+        'check recent activity',
+        'navigate to sections',
+      ],
+    },
+  },
+};
+
+// ── ROLE-BASED GUIDANCE ──
+
+const ROLE_GUIDANCE: Record<UserRole, string> = {
+  'super-admin': 'You have full visibility. I can help you review anything across the platform.',
+  admin: 'As an admin, I can guide you through management and configuration tasks.',
+  vendor: 'I can help you manage your profile, products, and services.',
+  customer: 'I can help you find what you need and navigate the platform.',
+  viewer: 'I can show you information and help you understand what you see.',
+};
+
+// ── MAIN SERVICE ──
+
+export class KaiCoreService {
+  /**
+   * Process a voice request and return a safe, contextual response.
+   * Enforces safety rules before generating any response.
+   */
+  processRequest(params: {
+    transcript: string;
+    appId: AppId;
+    userId: string;
+    userRole: UserRole;
+    currentScreen: string;
+    allowedActions: string[];
+    sessionId: string;
+  }): KaiCoreResponse {
+    const { transcript, appId, userRole, currentScreen, allowedActions } = params;
+
+    // ── Step 1: Check for blocked actions ──
+    const blockedCheck = this.checkBlockedActions(transcript, allowedActions);
+    if (blockedCheck) return blockedCheck;
+
+    // ── Step 2: Validate allowed actions against safety rules ──
+    const sanitizedActions = this.sanitizeAllowedActions(allowedActions);
+
+    // ── Step 3: Generate contextual response ──
+    return this.generateResponse(transcript, appId, userRole, currentScreen, sanitizedActions);
+  }
+
+  /**
+   * Check if the transcript or allowed actions contain blocked operations.
+   */
+  private checkBlockedActions(
+    transcript: string,
+    allowedActions: string[],
+  ): KaiCoreResponse | null {
+    // Check if any allowedActions include blocked items
+    const requestedBlocked = allowedActions.filter((a) =>
+      BLOCKED_ACTIONS.has(a.toLowerCase().replace(/\s+/g, '_')),
+    );
+
+    if (requestedBlocked.length > 0) {
+      return {
+        responseText:
+          `I can't perform these actions in voice mode: ${requestedBlocked.join(', ')}. ` +
+          'These require manual confirmation through the platform UI for safety.',
+        riskLevel: 'blocked',
+        requiresConfirmation: false,
+        suggestedActions: ['Use the platform UI for this action'],
+        actions: [],
+      };
+    }
+
+    // Check transcript for sensitive intent
+    for (const pattern of SENSITIVE_PATTERNS) {
+      if (pattern.test(transcript)) {
+        return {
+          responseText:
+            "I understand what you're asking, but that action requires manual confirmation " +
+            "through the platform UI. I can't perform sensitive operations through voice " +
+            'commands for safety. Would you like me to guide you to the right screen instead?',
+          riskLevel: 'high',
+          requiresConfirmation: true,
+          suggestedActions: [
+            'Navigate to the appropriate screen',
+            'Use the platform UI to complete this action',
+          ],
+          actions: [],
+        };
+      }
+    }
+
+    return null;
+  }
+
+  /**
+   * Remove any blocked actions from the allowed list server-side.
+   */
+  private sanitizeAllowedActions(allowedActions: string[]): string[] {
+    return allowedActions.filter(
+      (a) => !BLOCKED_ACTIONS.has(a.toLowerCase().replace(/\s+/g, '_')),
+    );
+  }
+
+  /**
+   * Generate a helpful, context-aware response.
+   */
+  private generateResponse(
+    transcript: string,
+    appId: AppId,
+    userRole: UserRole,
+    currentScreen: string,
+    allowedActions: string[],
+  ): KaiCoreResponse {
+    const ctx = APP_CONTEXTS[appId];
+    const roleGuidance = ROLE_GUIDANCE[userRole];
+    const normalizedTranscript = transcript.toLowerCase().trim();
+
+    // ── Greeting / introduction ──
+    if (this.isGreeting(normalizedTranscript)) {
+      const screenHints = ctx.screens[currentScreen];
+      const screenInfo = screenHints
+        ? ` On this screen, I can help you ${screenHints[0]}.`
+        : '';
+
+      return {
+        responseText:
+          `Hey! ${ctx.greeting}. ${roleGuidance}${screenInfo} What would you like to do?`,
+        riskLevel: 'safe',
+        requiresConfirmation: false,
+        suggestedActions: ctx.capabilities.slice(0, 3),
+        actions: [],
+      };
+    }
+
+    // ── Help / what can you do ──
+    if (this.isHelpRequest(normalizedTranscript)) {
+      const capList = ctx.capabilities.map((c) => `• ${c}`).join('\n');
+      return {
+        responseText:
+          `${ctx.greeting}. Here's what I can help with:\n${capList}\n\n` +
+          `${roleGuidance} Just ask and I'll guide you.`,
+        riskLevel: 'safe',
+        requiresConfirmation: false,
+        suggestedActions: ctx.capabilities.slice(0, 3),
+        actions: [],
+      };
+    }
+
+    // ── Screen-specific guidance ──
+    if (this.isScreenQuestion(normalizedTranscript)) {
+      const screenHints = ctx.screens[currentScreen];
+      if (screenHints) {
+        const hintList = screenHints.map((h) => `• ${h}`).join('\n');
+        return {
+          responseText:
+            `On this screen, here's what you can do:\n${hintList}\n\nWant me to walk you through any of these?`,
+          riskLevel: 'safe',
+          requiresConfirmation: false,
+          suggestedActions: screenHints,
+          actions: [],
+        };
+      }
+    }
+
+    // ── Navigation requests ──
+    if (this.isNavigationRequest(normalizedTranscript)) {
+      const availableScreens = Object.keys(ctx.screens);
+      return {
+        responseText:
+          `I can help you navigate! Available sections: ${availableScreens.join(', ')}. ` +
+          'Which one would you like to go to?',
+        riskLevel: 'safe',
+        requiresConfirmation: false,
+        suggestedActions: availableScreens.map((s) => `Go to ${s}`),
+        actions: [],
+      };
+    }
+
+    // ── Status / overview requests ──
+    if (this.isStatusRequest(normalizedTranscript)) {
+      return {
+        responseText:
+          `Let me help you get an overview. ${roleGuidance} ` +
+          'I can show you the dashboard metrics, recent activity, or help you find specific information. ' +
+          'What area would you like to check?',
+        riskLevel: 'safe',
+        requiresConfirmation: false,
+        suggestedActions: [
+          'View dashboard metrics',
+          'Check recent activity',
+          'Search for something specific',
+        ],
+        actions: [],
+      };
+    }
+
+    // ── Default contextual response ──
+    // In the full Kai Core, this would route to an LLM with the full context.
+    // For now, provide a helpful acknowledgment with context hints.
+    return {
+      responseText:
+        `I heard you say: "${transcript}". ` +
+        `${ctx.greeting}, and I'm here to guide you. ` +
+        `${roleGuidance} ` +
+        'In the next update, I\'ll have deeper understanding to help with more specific requests. ' +
+        'For now, try asking me what I can do, or ask about this screen.',
+      riskLevel: 'safe',
+      requiresConfirmation: false,
+      suggestedActions: ctx.capabilities.slice(0, 2),
+      actions: [],
+    };
+  }
+
+  // ── Intent Detection Helpers ──
+
+  private isGreeting(t: string): boolean {
+    return /^(hey|hi|hello|sup|yo|what'?s\s*up|good\s*(morning|afternoon|evening)|howdy)/i.test(t);
+  }
+
+  private isHelpRequest(t: string): boolean {
+    return /\b(help|what can you do|what do you do|capabilities|features|how.*(work|use))/i.test(t);
+  }
+
+  private isScreenQuestion(t: string): boolean {
+    return /\b(this screen|this page|what.*(here|see)|where am i|current.*(screen|page|view))/i.test(t);
+  }
+
+  private isNavigationRequest(t: string): boolean {
+    return /\b(go to|navigate|take me|show me|open|switch to)/i.test(t);
+  }
+
+  private isStatusRequest(t: string): boolean {
+    return /\b(status|overview|summary|how.*(things|everything)|what'?s\s*(happening|going\s*on))/i.test(t);
+  }
+}
