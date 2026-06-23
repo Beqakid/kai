@@ -1,6 +1,7 @@
 // ── KaiVoiceGateway — Core Service ──
 //
 // Phase 2: Real JWT auth — identity comes from verified token, not body.
+// Phase 3: Receipt logging via ActionReceiptLogger.
 // All routes require auth. allowedActions validated server-side.
 // Raw audio is never stored (unless ENABLE_KAI_AUDIO_STORAGE=true, future R2).
 
@@ -193,8 +194,8 @@ export class KaiVoiceGateway {
       throw Errors.missingField('transcript');
     }
 
-    // Get Kai response
-    const kai = getKaiProvider(this.env.KAI_CORE_PROVIDER);
+    // Get Kai response — pass D1 for receipt logging
+    const kai = getKaiProvider(this.env.KAI_CORE_PROVIDER, this.env.KAI_DB);
     const kaiResult = await kai.respond({
       transcript: body.transcript as string,
       appId: validated.appId,

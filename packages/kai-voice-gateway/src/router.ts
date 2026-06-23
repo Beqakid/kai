@@ -1,20 +1,22 @@
 // ── Kai Voice Gateway — Router ──
 //
-// Phase 5: All routes require auth + rate limiting.
+// Phase 3: Added action receipts API route.
+// All routes require auth + rate limiting.
 // Includes request timeout handling and rate limit cleanup.
 
 import { Env } from './types';
 import { KaiGatewayError, Errors } from './errors';
 import { KaiVoiceGateway } from './gateway';
-import { KaiTaskOrchestrator } from './orchestrator/orchestrator';
+import { KaiTaskOrchestrator, OrchestratorReceiptContext } from './orchestrator/orchestrator';
 import { CreateTaskRequest, TaskActionRequest } from './orchestrator/types';
-import { authenticateAndRateLimit } from './auth';
+import { authenticateAndRateLimit, requireAdmin, AuthResult } from './auth';
 import { validateJsonBodySize } from './services/security';
 import { cleanupRateLimits } from './services/security';
 
 const VOICE_PREFIX = '/api/kai/voice';
 const TASK_PREFIX = '/api/kai/tasks';
 const ORCH_PREFIX = '/api/kai/orchestrator';
+const RECEIPT_PATH = '/api/kai/action-receipts';
 
 /** Request timeout in milliseconds (30 seconds) */
 const REQUEST_TIMEOUT_MS = 30_000;
@@ -47,6 +49,16 @@ function jsonResponse(data: unknown, status = 200): Response {
       'Access-Control-Allow-Headers': 'Content-Type, Authorization',
     },
   });
+}
+
+/** Build receipt context from auth result */
+function toReceiptCtx(auth: AuthResult, sessionId?: string): OrchestratorReceiptContext {
+  return {
+    appId: auth.appId,
+    userId: auth.userId,
+    userRole: auth.userRole,
+    sessionId,
+  };
 }
 
 /**
@@ -168,7 +180,7 @@ export async function handleRequest(
         if (!body.actionType || !body.userId) {
           throw Errors.missingField('actionType and userId are required');
         }
-        const result = await orchestrator.executeAction(taskId, body);
+        const result = await orchestrator.executeAction(taskId, body, toReceiptCtx(auth));
         return jsonResponse(result);
       });
     }
@@ -179,7 +191,10 @@ export async function handleRequest(
         const auth = await authenticateAndRateLimit(request, env);
         validateJsonBodySize(request);
         const body = await request.json() as { userId: string };
-        const result = await orchestrator.helpMeOut(body.userId || auth.userId);
+        const result = await orchestrator.helpMeOut(
+          body.userId || auth.userId,
+          toReceiptCtx(auth),
+        );
         return jsonResponse(result);
       });
     }
@@ -193,13 +208,47 @@ export async function handleRequest(
         if (!body.command) {
           throw Errors.missingField('command');
         }
-        const result = await orchestrator.doNext(body.userId || auth.userId, body.command);
+        const result = await orchestrator.doNext(
+          body.userId || auth.userId,
+          body.command,
+          toReceiptCtx(auth),
+        );
         return jsonResponse(result);
       });
     }
 
+    // ── GET /api/kai/action-receipts — Super-admin only ──
+    if (path === RECEIPT_PATH && request.method === 'GET') {
+      return await withTimeout(async () => {
+        const auth = await authenticateAndRateLimit(request, env);
+        requireAdmin(auth.userRole);
+
+        const url2 = new URL(request.url);
+        const filters = {
+          appId: url2.searchParams.get('appId') || undefined,
+          userId: url2.searchParams.get('userId') || undefined,
+          receiptType: url2.searchParams.get('receiptType') || undefined,
+          riskLevel: url2.searchParams.get('riskLevel') || undefined,
+          taskId: url2.searchParams.get('taskId') || undefined,
+          page: parseInt(url2.searchParams.get('page') || '1', 10),
+          pageSize: parseInt(url2.searchParams.get('pageSize') || '20', 10),
+        };
+
+        const receiptLogger = orchestrator.getReceiptLogger();
+        const result = await receiptLogger.queryReceipts(filters);
+
+        return jsonResponse({
+          receipts: result.receipts,
+          total: result.total,
+          page: filters.page,
+          pageSize: Math.min(Math.max(1, filters.pageSize), 100),
+        });
+      });
+    }
+
     // Method exists but wrong HTTP method
-    if (path.startsWith(VOICE_PREFIX) || path.startsWith(TASK_PREFIX) || path.startsWith(ORCH_PREFIX)) {
+    if (path.startsWith(VOICE_PREFIX) || path.startsWith(TASK_PREFIX)
+        || path.startsWith(ORCH_PREFIX) || path === RECEIPT_PATH) {
       throw Errors.methodNotAllowed(request.method);
     }
 

@@ -3,8 +3,12 @@
 // This is the Kai Core placeholder that generates safe, contextual responses.
 // It enforces the Kai Voice v1 safety rules and can be replaced by the
 // full Kai Core engine in a future phase.
+//
+// Phase 3: Integrated with ActionReceiptLogger — every blocked action,
+// risk warning, and explanation creates an auditable receipt.
 
 import { AppId, UserRole, RiskLevel, KaiCoreResponse } from '../types';
+import { ActionReceiptLogger } from './action-receipt-logger';
 
 // ── BLOCKED ACTIONS — Kai Voice v1 cannot perform these ──
 
@@ -158,31 +162,96 @@ const ROLE_GUIDANCE: Record<UserRole, string> = {
 
 // ── MAIN SERVICE ──
 
+/** Context passed alongside the voice request for receipt logging */
+export interface KaiCoreContext {
+  transcript: string;
+  appId: AppId;
+  userId: string;
+  userRole: UserRole;
+  currentScreen: string;
+  allowedActions: string[];
+  sessionId: string;
+}
+
 export class KaiCoreService {
+  private readonly receiptLogger: ActionReceiptLogger | undefined;
+
+  constructor(receiptLogger?: ActionReceiptLogger) {
+    this.receiptLogger = receiptLogger;
+  }
+
   /**
    * Process a voice request and return a safe, contextual response.
    * Enforces safety rules before generating any response.
    */
-  processRequest(params: {
-    transcript: string;
-    appId: AppId;
-    userId: string;
-    userRole: UserRole;
-    currentScreen: string;
-    allowedActions: string[];
-    sessionId: string;
-  }): KaiCoreResponse {
+  processRequest(params: KaiCoreContext): KaiCoreResponse {
     const { transcript, appId, userRole, currentScreen, allowedActions } = params;
 
     // ── Step 1: Check for blocked actions ──
     const blockedCheck = this.checkBlockedActions(transcript, allowedActions);
-    if (blockedCheck) return blockedCheck;
+    if (blockedCheck) {
+      // Fire-and-forget receipt logging for blocked/risk-warning
+      this.logBlockedOrWarning(params, blockedCheck);
+      return blockedCheck;
+    }
 
     // ── Step 2: Validate allowed actions against safety rules ──
     const sanitizedActions = this.sanitizeAllowedActions(allowedActions);
 
     // ── Step 3: Generate contextual response ──
-    return this.generateResponse(transcript, appId, userRole, currentScreen, sanitizedActions);
+    const response = this.generateResponse(transcript, appId, userRole, currentScreen, sanitizedActions);
+
+    // Fire-and-forget receipt for explanations
+    this.logExplanationReceipt(params, response);
+
+    return response;
+  }
+
+  // ── Receipt logging helpers (fire-and-forget, never throws) ──
+
+  private logBlockedOrWarning(ctx: KaiCoreContext, response: KaiCoreResponse): void {
+    if (!this.receiptLogger) return;
+
+    if (response.riskLevel === 'blocked') {
+      this.receiptLogger.logBlockedAction({
+        appId: ctx.appId,
+        userId: ctx.userId,
+        userRole: ctx.userRole,
+        sessionId: ctx.sessionId,
+        source: 'kai-core',
+        userIntent: ctx.transcript,
+        blockedReason: 'Blocked actions requested via allowedActions list',
+        riskLevel: response.riskLevel,
+        kaiResponse: response.responseText,
+      }).catch(() => {});
+    } else if (response.riskLevel === 'high') {
+      this.receiptLogger.logRiskWarning({
+        appId: ctx.appId,
+        userId: ctx.userId,
+        userRole: ctx.userRole,
+        sessionId: ctx.sessionId,
+        source: 'kai-core',
+        userIntent: ctx.transcript,
+        riskLevel: response.riskLevel,
+        kaiResponse: response.responseText,
+        requiresConfirmation: response.requiresConfirmation,
+      }).catch(() => {});
+    }
+  }
+
+  private logExplanationReceipt(ctx: KaiCoreContext, response: KaiCoreResponse): void {
+    if (!this.receiptLogger) return;
+    if (response.riskLevel !== 'safe') return; // only log safe explanations here
+
+    this.receiptLogger.logExplanation({
+      appId: ctx.appId,
+      userId: ctx.userId,
+      userRole: ctx.userRole,
+      sessionId: ctx.sessionId,
+      source: 'kai-core',
+      userIntent: ctx.transcript,
+      kaiResponse: response.responseText,
+    }).catch(() => {});
   }
 
   /**
@@ -334,8 +403,6 @@ export class KaiCoreService {
     }
 
     // ── Default contextual response ──
-    // In the full Kai Core, this would route to an LLM with the full context.
-    // For now, provide a helpful acknowledgment with context hints.
     return {
       responseText:
         `I heard you say: "${transcript}". ` +
