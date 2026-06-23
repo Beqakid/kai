@@ -19,6 +19,7 @@ const TASK_PREFIX = '/api/kai/tasks';
 const ORCH_PREFIX = '/api/kai/orchestrator';
 const RECEIPT_PATH = '/api/kai/action-receipts';
 const PENDING_PREFIX = '/api/kai/actions';
+const PROOFTRUST_PREFIX = '/api/kai/prooftrust';
 
 /** Request timeout in milliseconds (30 seconds) */
 const REQUEST_TIMEOUT_MS = 30_000;
@@ -323,10 +324,62 @@ export async function handleRequest(
       });
     }
 
+    // ── Phase 7: ProofTrust Bridge Routes ──
+
+    // GET /api/kai/prooftrust/status — Super-admin only
+    if (path === `${PROOFTRUST_PREFIX}/status` && request.method === 'GET') {
+      return await withTimeout(async () => {
+        const auth = await authenticateAndRateLimit(request, env);
+        requireAdmin(auth.userRole);
+
+        const bridge = orchestrator.getProofTrustBridge();
+        const status = bridge.getTrustStatus();
+        return jsonResponse(status);
+      });
+    }
+
+    // POST /api/kai/prooftrust/evaluate — Super-admin only (testing endpoint)
+    if (path === `${PROOFTRUST_PREFIX}/evaluate` && request.method === 'POST') {
+      return await withTimeout(async () => {
+        const auth = await authenticateAndRateLimit(request, env);
+        requireAdmin(auth.userRole);
+
+        validateJsonBodySize(request);
+        const body = await request.json() as {
+          appId: string;
+          actionType: string;
+          actorRole: string;
+          riskLevel: string;
+          targetType?: string;
+          targetId?: string;
+          metadata?: Record<string, unknown>;
+        };
+
+        if (!body.appId || !body.actionType || !body.actorRole || !body.riskLevel) {
+          throw Errors.missingField('appId, actionType, actorRole, and riskLevel are required');
+        }
+
+        const bridge = orchestrator.getProofTrustBridge();
+        const result = bridge.evaluateAction({
+          appId: body.appId,
+          actorId: auth.userId,
+          actorRole: body.actorRole,
+          actionType: body.actionType,
+          riskLevel: body.riskLevel as any,
+          targetType: body.targetType,
+          targetId: body.targetId,
+          metadata: body.metadata,
+          source: 'prooftrust-evaluate-api',
+        });
+
+        return jsonResponse(result);
+      });
+    }
+
     // Method exists but wrong HTTP method
     if (path.startsWith(VOICE_PREFIX) || path.startsWith(TASK_PREFIX)
         || path.startsWith(ORCH_PREFIX) || path === RECEIPT_PATH
-        || path.startsWith(PENDING_PREFIX)) {
+        || path.startsWith(PENDING_PREFIX) || path.startsWith(PROOFTRUST_PREFIX)) {
       throw Errors.methodNotAllowed(request.method);
     }
 

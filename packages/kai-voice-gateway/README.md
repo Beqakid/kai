@@ -575,3 +575,77 @@ import { VoiceHistory } from './components/VoiceHistory';
 Shows: timestamp, app, role, transcript, Kai response, providers, risk level, errors.
 Supports filtering by app and risk level.
 Non-admin users see an access denied message.
+
+## ProofTrust Bridge Lite (Phase 7)
+
+### What It Is
+
+The ProofTrust Bridge is a reusable interface layer that sits between Kai's existing safety infrastructure (Permission Gate, Action Receipts, Pending Confirmation Workflow) and the future ProofTrust Engine. It provides a clean, app-agnostic contract so Kai's safety decisions, receipts, approvals, and risk evaluations can later be routed through a centralized trust engine without code changes to each app.
+
+### What It Does Now
+
+- **`ProofTrustBridge` interface** — defines 11 methods covering the full action lifecycle: `createReceipt`, `evaluateAction`, `requireApproval`, `recordBlockedAction`, `recordAiRecommendation`, `recordPreparedAction`, `recordConfirmedAction`, `recordDeniedAction`, `recordExpiredAction`, `recordExecutedAction`, `getTrustStatus`.
+- **`ProofTrustBridgeLite` implementation** — a lightweight bridge that:
+  - Uses existing Kai Action Receipts (D1 `kai_action_receipts` table) as the receipt backend.
+  - Mirrors gate decisions from `KaiPermissionGate` — the gate remains authoritative.
+  - Enriches receipt metadata with ProofTrust-shaped fields (`proofTrustBridgeVersion`, `proofTrustDecision`, `proofTrustReceiptType`, `targetType`, `targetId`, `tenantId`).
+  - Maps all 15+ Kai receipt types to generic ProofTrust receipt types (e.g. `kai_action_blocked` → `ai_action_blocked`).
+  - Sends lifecycle events for every pending action state change (prepared, confirmed, denied, expired, executed).
+  - Sanitizes metadata to prevent storage of tokens, secrets, raw audio, or private documents.
+- **`GET /api/kai/prooftrust/status`** — super-admin-only route showing bridge mode, engine connection status, supported apps/receipt types/risk levels, and version.
+- **`POST /api/kai/prooftrust/evaluate`** — super-admin-only route for testing ProofTrust evaluation without executing an action.
+
+### What It Does NOT Do Yet
+
+- Does not connect to an external ProofTrust Engine service.
+- Does not create new production trust tables.
+- Does not execute actions — only records and evaluates.
+- Does not override the Permission Gate or Pending Confirmation Workflow.
+- Does not contain app-specific trust logic (no Carehia, Viliniu, Volau, or JCC rules).
+
+### How It Prepares Kai for the Full ProofTrust Engine
+
+The bridge establishes the data contract and integration points now so the future full engine can:
+1. **Replace `ProofTrustBridgeLite`** with a full implementation that satisfies the same `ProofTrustBridge` interface.
+2. **Route receipts** to a dedicated ProofTrust receipt store instead of `kai_action_receipts`.
+3. **Evaluate actions** using external rule packs instead of mirroring the local gate.
+4. **Connect Carehia, Viliniu, Volau, and JCC** through app-specific rule packs that plug into the generic interface — no hardcoded logic needed.
+
+### Why App-Specific Rules Should Not Be Hardcoded
+
+Each app (Carehia, Viliniu, Volau, Jon Command Center) has different trust requirements, risk thresholds, and compliance needs. Hardcoding these into the bridge would:
+- Create tight coupling between the trust layer and individual apps.
+- Make it impossible to update one app's rules without redeploying the whole gateway.
+- Violate separation of concerns.
+
+Instead, the full ProofTrust Engine will support **rule packs** — pluggable, per-app trust configurations that the bridge loads dynamically.
+
+### ProofTrust Types
+
+All types are in `src/prooftrust/types.ts`:
+
+| Type | Purpose |
+|---|---|
+| `ProofTrustAppId` | Application identifier |
+| `ProofTrustTenantId` | Optional multi-tenant identifier |
+| `ProofTrustActor` | Actor identity (id, role, workspace) |
+| `ProofTrustTarget` | Action target (type, id) |
+| `ProofTrustActionInput` | Input for evaluating an action |
+| `ProofTrustReceiptInput` | Input for creating a receipt |
+| `ProofTrustEvaluationResult` | Evaluation output (decision, risk, confirmation) |
+| `ProofTrustApprovalRequest` | Input for requesting approval |
+| `ProofTrustTrustStatus` | System status output |
+| `ProofTrustReceiptType` | 15 generic receipt types |
+| `ProofTrustRiskLevel` | low / medium / high / blocked |
+| `ProofTrustDecision` | allow / deny / requiresConfirmation / requiresAdminApproval |
+
+### API Routes
+
+#### `GET /api/kai/prooftrust/status`
+- **Access:** super-admin only
+- **Returns:** bridge mode, engine status, supported apps/types/levels, version, note
+
+#### `POST /api/kai/prooftrust/evaluate`
+- **Access:** super-admin only
+- **Body:** `{ appId, actionType, actorRole, riskLevel, targetType?, targetId?, metadata? }`
+- **Returns:** `{ decision, riskLevel, requiresConfirmation, requiresAdminApproval, reason, bridgeMode }`
