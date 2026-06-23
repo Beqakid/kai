@@ -21,6 +21,7 @@
 import { AppId, UserRole, ALLOWED_ACTIONS_REGISTRY } from '../types';
 import { BLOCKED_ACTIONS_V1 } from '../orchestrator/types';
 import { ActionReceiptLogger } from './action-receipt-logger';
+import type { ProofTrustBridgeLite } from '../prooftrust/prooftrust-bridge';
 
 // ── Extended blocked actions (Phase 4 — superset of BLOCKED_ACTIONS_V1) ──
 
@@ -128,9 +129,23 @@ export interface GateMetadata {
 
 export class KaiPermissionGate {
   private readonly receiptLogger: ActionReceiptLogger | undefined;
+  private proofTrustBridge: ProofTrustBridgeLite | undefined;
 
   constructor(receiptLogger?: ActionReceiptLogger) {
     this.receiptLogger = receiptLogger;
+  }
+
+  /**
+   * Phase 7: Attach a ProofTrustBridgeLite instance.
+   * The gate remains authoritative — the bridge mirrors/enriches decisions.
+   */
+  setProofTrustBridge(bridge: ProofTrustBridgeLite): void {
+    this.proofTrustBridge = bridge;
+  }
+
+  /** Get the attached ProofTrust bridge (if any). */
+  getProofTrustBridge(): ProofTrustBridgeLite | undefined {
+    return this.proofTrustBridge;
   }
 
   /**
@@ -332,6 +347,45 @@ export class KaiPermissionGate {
     }
 
     return null; // No sensitive content detected
+  }
+
+  /**
+   * Phase 7: Enrich a gate decision with ProofTrust bridge data.
+   *
+   * Called after the gate evaluates an action. The gate remains authoritative;
+   * the bridge mirrors or enriches the decision but never overrides it.
+   * Returns optional metadata to attach to receipts.
+   */
+  enrichWithProofTrust(
+    input: GateInput,
+    decision: GateDecision,
+  ): Record<string, unknown> | undefined {
+    if (!this.proofTrustBridge) return undefined;
+
+    try {
+      const ptResult = this.proofTrustBridge.evaluateAction({
+        appId: input.appId,
+        actorId: input.userId,
+        actorRole: input.userRole,
+        actionType: input.actionType,
+        actionSummary: input.requestedAction,
+        riskLevel: decision.riskLevel as any,
+        sessionId: input.sessionId,
+        taskId: input.taskId,
+        source: input.source || 'permission-gate',
+        metadata: input.metadata,
+      });
+
+      return {
+        proofTrustDecision: ptResult.decision,
+        proofTrustRiskLevel: ptResult.riskLevel,
+        proofTrustBridgeMode: ptResult.bridgeMode,
+        proofTrustBridgeVersion: '0.1.0',
+      };
+    } catch {
+      // Never block on bridge errors
+      return undefined;
+    }
   }
 
   /**

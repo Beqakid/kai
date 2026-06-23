@@ -437,6 +437,57 @@ export class ActionReceiptLogger {
     });
   }
 
+  // ── Phase 7: ProofTrust Bridge adapter ──
+
+  /**
+   * Log a receipt through the ProofTrust Bridge.
+   *
+   * This adapter allows ProofTrustBridgeLite to write receipts using the
+   * existing receipt logger infrastructure. It enriches metadata_json with
+   * ProofTrust-shaped fields without duplicating receipt creation.
+   *
+   * Safety: metadata is pre-sanitized by the bridge; this method does not
+   * store tokens, secrets, raw audio, or private documents.
+   */
+  async logProofTrustReceipt(input: {
+    appId: string;
+    userId: string;
+    userRole: string;
+    project?: string;
+    sessionId?: string;
+    source?: string;
+    requestId?: string;
+    taskId?: string;
+    receiptType: string;
+    actionType?: string;
+    actionSummary?: string;
+    riskLevel: string;
+    requiresConfirmation?: boolean;
+    metadata?: Record<string, unknown>;
+  }): Promise<void> {
+    // Validate the receipt type is known (fall back to the raw value if valid Kai type)
+    const receiptType = RECEIPT_TYPES.includes(input.receiptType as ReceiptType)
+      ? (input.receiptType as ReceiptType)
+      : 'kai_action_executed'; // safe fallback
+
+    await this.insert({
+      receiptType,
+      appId: input.appId,
+      userId: input.userId,
+      userRole: input.userRole,
+      project: input.project,
+      sessionId: input.sessionId,
+      source: input.source || 'prooftrust-bridge',
+      requestId: input.requestId,
+      taskId: input.taskId,
+      actionType: input.actionType,
+      actionSummary: input.actionSummary,
+      riskLevel: input.riskLevel,
+      requiresConfirmation: input.requiresConfirmation,
+      metadata: input.metadata,
+    });
+  }
+
   // ── Query receipts (for the admin API) ──
 
   async queryReceipts(filters: {

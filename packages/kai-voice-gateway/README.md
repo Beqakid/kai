@@ -650,6 +650,7 @@ All types are in `src/prooftrust/types.ts`:
 - **Body:** `{ appId, actionType, actorRole, riskLevel, targetType?, targetId?, metadata? }`
 - **Returns:** `{ decision, riskLevel, requiresConfirmation, requiresAdminApproval, reason, bridgeMode }`
 
+
 ---
 
 ## Carehia AI OS Task Seed Pack (Phase 8)
@@ -727,3 +728,4 @@ Once seeded, these tasks appear in the **Jon Command Center Kai Tasks Panel**:
 3. **Recent Receipts** — All Kai actions on these tasks generate auditable receipts
 
 Tasks use `appId: "jon-command-center"` and `project: "Carehia AI OS Transformation"` so they can be filtered as a group.
+
