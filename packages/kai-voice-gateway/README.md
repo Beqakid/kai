@@ -649,3 +649,83 @@ All types are in `src/prooftrust/types.ts`:
 - **Access:** super-admin only
 - **Body:** `{ appId, actionType, actorRole, riskLevel, targetType?, targetId?, metadata? }`
 - **Returns:** `{ decision, riskLevel, requiresConfirmation, requiresAdminApproval, reason, bridgeMode }`
+
+
+---
+
+## Carehia AI OS Task Seed Pack (Phase 8)
+
+Phase 8 adds a seed pack of **15 Carehia AI OS Transformation tasks** that Kai can operate on from Jon Command Center. These are planning and review tasks for the Carehia transformation roadmap — no production code is modified.
+
+> ⚠️ **This seed pack does NOT modify the Carehia production app.** It only creates tasks inside the Kai task orchestrator that can be managed from JCC.
+
+### Purpose
+
+Kai now has the full command infrastructure (voice gateway, task orchestrator, receipts, permission gate, pending confirmation, JCC panel, ProofTrust bridge). This seed pack gives Kai **meaningful work** — a structured set of Carehia AI OS transformation tasks that Jon can review, prioritize, and act on via Kai.
+
+### Task List
+
+| # | Title | Priority | Severity | Risk | Action |
+|---|---|---|---|---|---|
+| 1 | Review and merge Kai Phase 6 JCC Tasks Panel | critical | urgent | low | summarize_blockers |
+| 2 | Review and merge Kai Phase 7 ProofTrust Bridge | critical | urgent | low | summarize_blockers |
+| 3 | Add Carehia AI OS Transformation Module in JCC | critical | urgent | low | generate_tasklet_prompt |
+| 4 | Add Carehia Proof Ledger Planner in JCC | critical | urgent | low | generate_tasklet_prompt |
+| 5 | Audit Current Carehia App Structure | critical | urgent | medium | generate_tasklet_prompt |
+| 6 | Define Unified Carehia Role and Workspace Model | high | urgent | low | generate_tasklet_prompt |
+| 7 | Plan Kai Goal Engine for Carehia | high | urgent | low | generate_tasklet_prompt |
+| 8 | Plan Carehia PrivateProof Flow | high | normal | low | generate_tasklet_prompt |
+| 9 | Plan Carehia Trust Receipts | high | normal | low | generate_tasklet_prompt |
+| 10 | Plan Carehia Dynamic Workspace Cards | medium | normal | low | generate_tasklet_prompt |
+| 11 | Plan Carehia Admin Trust Dashboard | medium | normal | low | generate_tasklet_prompt |
+| 12 | Plan Carehia Retest and Launch Readiness Tracker | medium | normal | low | generate_tasklet_prompt |
+| 13 | Plan ProofTrust Core Extraction Strategy | high | normal | low | generate_tasklet_prompt |
+| 14 | Plan Carehia Rule Pack for ProofTrust | high | normal | low | generate_tasklet_prompt |
+| 15 | Plan Kai Capability Review | medium | normal | low | generate_tasklet_prompt |
+
+### Seed File
+
+```
+seeds/carehia-ai-os-tasks.json
+```
+
+Each task includes `appId`, `project`, `title`, `description`, `source`, `priority`, `severity`, `suggestedAction`, `riskLevel`, `requiresConfirmation`, `weights` (8 priority dimensions), and `metadataJson`.
+
+### Running the Seed Script
+
+**Dry run** (preview without database changes):
+```bash
+npm run seed:carehia-ai-os:dry-run
+```
+
+**Generate SQL** (pipe to D1):
+```bash
+# Local D1
+npm run seed:carehia-ai-os:sql | npx wrangler d1 execute KAI_DB --local --file=-
+
+# Production D1 (requires --remote flag)
+npm run seed:carehia-ai-os:sql > seed.sql
+npx wrangler d1 execute KAI_DB --remote --file=seed.sql
+```
+
+**JSON summary**:
+```bash
+npm run seed:carehia-ai-os
+```
+
+The script:
+- Reads `seeds/carehia-ai-os-tasks.json`
+- Generates INSERT statements for the `kai_tasks` table
+- Skips duplicates by `title + project` (uses `WHERE NOT EXISTS`)
+- Reports inserted / skipped / error counts
+
+### How Tasks Appear in JCC
+
+Once seeded, these tasks appear in the **Jon Command Center Kai Tasks Panel**:
+
+1. **Task List** — All 15 tasks sorted by priority score, filterable by priority/status
+2. **Pending Confirmations** — The medium-risk "Audit Current Carehia App Structure" task requires confirmation before Kai acts
+3. **Recent Receipts** — All Kai actions on these tasks generate auditable receipts
+
+Tasks use `appId: "jon-command-center"` and `project: "Carehia AI OS Transformation"` so they can be filtered as a group.
+

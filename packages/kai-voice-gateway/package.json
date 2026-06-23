@@ -5,12 +5,16 @@
   "scripts": {
     "dev": "wrangler dev",
     "deploy": "wrangler deploy",
-    "test": "vitest run"
+    "test": "vitest run",
+    "seed:carehia-ai-os": "tsx scripts/seed-carehia-ai-os.ts",
+    "seed:carehia-ai-os:sql": "tsx scripts/seed-carehia-ai-os.ts --sql",
+    "seed:carehia-ai-os:dry-run": "tsx scripts/seed-carehia-ai-os.ts --dry-run"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20241218.0",
+    "@types/node": "^26.0.0",
     "typescript": "^5.7.0",
-    "wrangler": "^3.99.0",
-    "vitest": "^2.1.0"
+    "vitest": "^2.1.0",
+    "wrangler": "^3.99.0"
   }
 }
