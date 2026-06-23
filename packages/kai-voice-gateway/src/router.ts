@@ -121,7 +121,7 @@ export async function handleRequest(
     // GET /api/kai/tasks — List tasks (with optional filters)
     if (path === TASK_PREFIX && request.method === 'GET') {
       return await withTimeout(async () => {
-        const auth = authenticateAndRateLimit(request, env);
+        const auth = await authenticateAndRateLimit(request, env);
         const url2 = new URL(request.url);
         const filters = {
           appId: url2.searchParams.get('appId') || undefined,
@@ -137,7 +137,7 @@ export async function handleRequest(
     // POST /api/kai/tasks — Create a new task
     if (path === TASK_PREFIX && request.method === 'POST') {
       return await withTimeout(async () => {
-        const auth = authenticateAndRateLimit(request, env);
+        const auth = await authenticateAndRateLimit(request, env);
         validateJsonBodySize(request);
         const body = await request.json() as CreateTaskRequest;
         if (!body.appId || !body.title) {
@@ -151,7 +151,7 @@ export async function handleRequest(
     // POST /api/kai/tasks/prioritize — Re-rank all tasks
     if (path === `${TASK_PREFIX}/prioritize` && request.method === 'POST') {
       return await withTimeout(async () => {
-        const auth = authenticateAndRateLimit(request, env);
+        const auth = await authenticateAndRateLimit(request, env);
         const result = await orchestrator.reprioritize();
         return jsonResponse(result);
       });
@@ -161,7 +161,7 @@ export async function handleRequest(
     const actionMatch = path.match(/^\/api\/kai\/tasks\/([^/]+)\/action$/);
     if (actionMatch && request.method === 'POST') {
       return await withTimeout(async () => {
-        const auth = authenticateAndRateLimit(request, env);
+        const auth = await authenticateAndRateLimit(request, env);
         validateJsonBodySize(request);
         const taskId = actionMatch[1];
         const body = await request.json() as TaskActionRequest;
@@ -176,7 +176,7 @@ export async function handleRequest(
     // POST /api/kai/orchestrator/help-me-out — Kai selects top task
     if (path === `${ORCH_PREFIX}/help-me-out` && request.method === 'POST') {
       return await withTimeout(async () => {
-        const auth = authenticateAndRateLimit(request, env);
+        const auth = await authenticateAndRateLimit(request, env);
         validateJsonBodySize(request);
         const body = await request.json() as { userId: string };
         const result = await orchestrator.helpMeOut(body.userId || auth.userId);
@@ -187,7 +187,7 @@ export async function handleRequest(
     // POST /api/kai/orchestrator/next — Process follow-up command
     if (path === `${ORCH_PREFIX}/next` && request.method === 'POST') {
       return await withTimeout(async () => {
-        const auth = authenticateAndRateLimit(request, env);
+        const auth = await authenticateAndRateLimit(request, env);
         validateJsonBodySize(request);
         const body = await request.json() as { userId: string; command: string };
         if (!body.command) {

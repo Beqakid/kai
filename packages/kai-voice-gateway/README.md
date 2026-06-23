@@ -26,8 +26,38 @@ User taps orb → KaiVoiceOrb (React) → Kai Voice Gateway (CF Worker)
 
 ## Security
 
-### Authentication
-All voice routes require a `Bearer` token in the `Authorization` header. In production, set `KAI_AUTH_SECRET` and implement JWT verification.
+### Authentication (JWT — Phase 2)
+All voice routes require a `Bearer` token in the `Authorization` header.
+
+**Production mode** (default):
+- Tokens are verified as HMAC-SHA256 (HS256) JWTs using `KAI_AUTH_SECRET`.
+- The JWT must contain these claims:
+
+| Claim | Type | Required | Description |
+|-------|------|----------|-------------|
+| `sub` | string | ✅* | User ID (preferred over `userId`) |
+| `userId` | string | ✅* | User ID (fallback if `sub` is absent) |
+| `appId` | string | ✅ | Must match a valid app ID |
+| `userRole` | string | ✅ | Must match a valid role |
+| `iat` | number | ✅ | Issued-at (Unix seconds) |
+| `exp` | number | ✅ | Expiration (Unix seconds) |
+
+\* At least one of `sub` or `userId` must be present. `sub` takes precedence.
+
+- **Token identity is authoritative.** `userId`, `appId`, and `userRole` come from the verified token — not from the request body.
+- If the request body contains `appId` or `userRole` that conflicts with the token claims, the request is rejected (403).
+- Non-empty random strings no longer authenticate. Only valid signed JWTs are accepted.
+
+**Local/dev mode:**
+- Set `KAI_ALLOW_DEMO_TOKEN=true` in `wrangler.toml` or environment to accept the literal string `demo-token` without JWT verification.
+- `demo-token` returns a fixed identity: `demo-user-001` / `jon-command-center` / `super-admin`.
+- **Never enable this flag in production.**
+
+**Required secret:**
+```bash
+# Set the JWT signing secret (minimum 32 characters recommended)
+wrangler secret put KAI_AUTH_SECRET
+```
 
 ### Rate Limiting
 - 30 requests per user per minute (sliding window)
@@ -71,6 +101,7 @@ Kai Voice v1 **cannot** perform:
 | `KAI_TTS_PROVIDER` | TTS engine | `cloudflare-ai` |
 | `KAI_CORE_PROVIDER` | Kai response engine | `kai-core` |
 | `ENABLE_KAI_AUDIO_STORAGE` | Store raw audio in R2 | `false` |
+| `KAI_ALLOW_DEMO_TOKEN` | Accept demo-token (dev only) | _(unset / false)_ |
 
 ### Optional
 | Variable | Description |

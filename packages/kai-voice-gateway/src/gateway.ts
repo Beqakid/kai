@@ -1,6 +1,6 @@
 // ── KaiVoiceGateway — Core Service ──
 //
-// Phase 5: D1 logging, security hardening, rate limiting, audio limits.
+// Phase 2: Real JWT auth — identity comes from verified token, not body.
 // All routes require auth. allowedActions validated server-side.
 // Raw audio is never stored (unless ENABLE_KAI_AUDIO_STORAGE=true, future R2).
 
@@ -10,15 +10,14 @@ import {
   TranscribeResponse,
   RespondResponse,
   HistoryResponse,
-  ADMIN_ROLES,
   UserRole,
 } from './types';
 import { Errors } from './errors';
 import {
   authenticateAndRateLimit,
   validateVoiceRequest,
-  validateUserRole,
   requireAdmin,
+  AuthResult,
 } from './auth';
 import { getSTTProvider } from './providers/stt';
 import { getKaiProvider } from './providers/kai';
@@ -51,7 +50,7 @@ export class KaiVoiceGateway {
 
   // ── POST /api/kai/voice/session ──
   async createSession(request: Request): Promise<Response> {
-    const auth = authenticateAndRateLimit(request, this.env);
+    const auth = await authenticateAndRateLimit(request, this.env);
     validateJsonBodySize(request);
 
     let body: Record<string, unknown>;
@@ -61,7 +60,7 @@ export class KaiVoiceGateway {
       throw Errors.gatewayFailure('Invalid JSON in request body.');
     }
 
-    const validated = validateVoiceRequest(body);
+    const validated = validateVoiceRequest(body, auth);
 
     const sessionId = generateId('vses');
     const now = new Date();
@@ -99,7 +98,7 @@ export class KaiVoiceGateway {
 
   // ── POST /api/kai/voice/transcribe ──
   async transcribe(request: Request): Promise<Response> {
-    const auth = authenticateAndRateLimit(request, this.env);
+    const auth = await authenticateAndRateLimit(request, this.env);
 
     // Parse multipart form data
     let formData: FormData;
@@ -118,9 +117,9 @@ export class KaiVoiceGateway {
     // ── Security: validate audio file size ──
     validateAudioSize(audioFile.size);
 
-    // Extract and validate metadata
+    // Extract metadata from form (used for currentScreen and allowedActions)
     const metadata: Record<string, unknown> = {};
-    for (const key of ['sessionId', 'appId', 'userId', 'userRole', 'currentScreen']) {
+    for (const key of ['sessionId', 'currentScreen']) {
       const val = formData.get(key);
       if (!val || typeof val !== 'string') {
         throw Errors.missingField(key);
@@ -128,10 +127,18 @@ export class KaiVoiceGateway {
       metadata[key] = val;
     }
 
+    // Optional body fields that get validated against token
+    for (const key of ['appId', 'userId', 'userRole']) {
+      const val = formData.get(key);
+      if (val && typeof val === 'string') {
+        metadata[key] = val;
+      }
+    }
+
     const actionsRaw = formData.get('allowedActions');
     metadata.allowedActions = actionsRaw ? JSON.parse(actionsRaw as string) : [];
 
-    const validated = validateVoiceRequest(metadata);
+    const validated = validateVoiceRequest(metadata, auth);
 
     // ── Do NOT store raw audio ──
     const audioBuffer = await audioFile.arrayBuffer();
@@ -167,7 +174,7 @@ export class KaiVoiceGateway {
 
   // ── POST /api/kai/voice/respond ──
   async respond(request: Request): Promise<Response> {
-    const auth = authenticateAndRateLimit(request, this.env);
+    const auth = await authenticateAndRateLimit(request, this.env);
     validateJsonBodySize(request);
 
     let body: Record<string, unknown>;
@@ -177,7 +184,7 @@ export class KaiVoiceGateway {
       throw Errors.gatewayFailure('Invalid JSON in request body.');
     }
 
-    const validated = validateVoiceRequest(body);
+    const validated = validateVoiceRequest(body, auth);
 
     if (!body.sessionId || typeof body.sessionId !== 'string') {
       throw Errors.missingField('sessionId');
@@ -260,18 +267,12 @@ export class KaiVoiceGateway {
   // ── GET /api/kai/voice/history ──
   // Admin-only: returns paginated voice interaction history from D1.
   async getHistory(request: Request): Promise<Response> {
-    authenticateAndRateLimit(request, this.env);
+    const auth = await authenticateAndRateLimit(request, this.env);
+
+    // Admin check uses the verified token's role
+    requireAdmin(auth.userRole);
 
     const url = new URL(request.url);
-
-    // Require admin role (passed as query param or header for GET requests)
-    const userRole = url.searchParams.get('userRole') || '';
-    if (userRole) {
-      const validatedRole = validateUserRole(userRole) as UserRole;
-      requireAdmin(validatedRole);
-    } else {
-      throw Errors.forbidden('Admin access required. Provide userRole query param.');
-    }
 
     const page = Math.max(1, parseInt(url.searchParams.get('page') || '1', 10));
     const pageSize = Math.min(
