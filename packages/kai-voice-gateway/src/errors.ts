@@ -150,6 +150,14 @@ export const Errors = {
   },
 
 
+  tokenClaimConflict(field: string, bodyValue: string, tokenValue: string) {
+    return new KaiGatewayError(
+      403,
+      'TOKEN_CLAIM_CONFLICT',
+      `Request body ${field} "${bodyValue}" conflicts with token claim "${tokenValue}".`,
+    );
+  },
+
   providerNotConfigured(provider: string, details?: string) {
     return new KaiGatewayError(
       500,

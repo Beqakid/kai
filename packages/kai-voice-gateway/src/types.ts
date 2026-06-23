@@ -124,6 +124,7 @@ export interface Env {
   KAI_CORE_PROVIDER: KaiProviderName;
   ENABLE_KAI_AUDIO_STORAGE: string; // "true" | "false"
   KAI_AUTH_SECRET: string;
+  KAI_ALLOW_DEMO_TOKEN?: string; // "true" to allow demo-token in local/dev
   // TTS config
   KAI_TTS_VOICE?: string;
   KAI_TTS_LANGUAGE?: string;

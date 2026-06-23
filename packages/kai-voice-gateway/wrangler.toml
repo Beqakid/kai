@@ -30,8 +30,11 @@ ENABLE_KAI_AUDIO_STORAGE = "false"
 # KAI_TTS_LANGUAGE = "en"
 # KAI_TTS_SPEED = "1.0"
 
+# Dev-only: accept demo-token without JWT verification
+# KAI_ALLOW_DEMO_TOKEN = "true"  # NEVER enable in production
+
 # Secrets (set via `wrangler secret put <NAME>`)
-# KAI_AUTH_SECRET = ""         # JWT verification secret
+# KAI_AUTH_SECRET = ""         # JWT verification secret (HMAC-SHA256)
 # OPENAI_API_KEY = ""          # Required if KAI_STT_PROVIDER=whisper or KAI_TTS_PROVIDER=openai-tts
 # DEEPGRAM_API_KEY = ""        # Required if KAI_STT_PROVIDER=deepgram
 # ELEVENLABS_API_KEY = ""      # Required if KAI_TTS_PROVIDER=elevenlabs
