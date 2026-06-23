@@ -1,8 +1,12 @@
 // ── Kai Core Provider Abstraction ──
+//
+// Phase 3: KaiCoreProvider accepts an ActionReceiptLogger to pass through
+// to KaiCoreService for receipt logging.
 
-import { KaiProviderName, KaiCoreResponse, AppId, UserRole } from '../types';
+import { KaiProviderName, KaiCoreResponse, AppId, UserRole, D1Database } from '../types';
 import { Errors } from '../errors';
 import { KaiCoreService } from '../services/kai-core';
+import { ActionReceiptLogger } from '../services/action-receipt-logger';
 
 /** Params for Kai provider respond method */
 export interface KaiRespondParams {
@@ -41,13 +45,14 @@ export class MockKaiProvider implements KaiProvider {
 /**
  * Kai Core Provider — uses KaiCoreService for safe, context-aware responses.
  * This is the real provider for Kai Voice v1.
+ * Phase 3: Accepts optional ActionReceiptLogger for audit trail.
  */
 export class KaiCoreProvider implements KaiProvider {
   readonly name: KaiProviderName = 'kai-core';
   private readonly service: KaiCoreService;
 
-  constructor() {
-    this.service = new KaiCoreService();
+  constructor(receiptLogger?: ActionReceiptLogger) {
+    this.service = new KaiCoreService(receiptLogger);
   }
 
   async respond(params: KaiRespondParams): Promise<KaiCoreResponse> {
@@ -71,12 +76,12 @@ export class KaiCoreProvider implements KaiProvider {
 }
 
 /** Factory to get the right Kai provider */
-export function getKaiProvider(name: KaiProviderName): KaiProvider {
+export function getKaiProvider(name: KaiProviderName, db?: D1Database): KaiProvider {
   switch (name) {
     case 'mock':
       return new MockKaiProvider();
     case 'kai-core':
-      return new KaiCoreProvider();
+      return new KaiCoreProvider(new ActionReceiptLogger(db));
     default:
       throw Errors.unsupportedProvider('Kai', name);
   }

@@ -22,6 +22,7 @@ User taps orb → KaiVoiceOrb (React) → Kai Voice Gateway (CF Worker)
 | POST | `/api/kai/voice/transcribe` | ✅ | Transcribe audio to text |
 | POST | `/api/kai/voice/respond` | ✅ | Get Kai response + TTS audio |
 | GET | `/api/kai/voice/history` | ✅ Admin | Paginated voice interaction history |
+| GET | `/api/kai/action-receipts` | ✅ Super-admin | Paginated action receipt audit log |
 | GET | `/health` | ❌ | Health check |
 
 ## Security
@@ -91,6 +92,66 @@ Kai Voice v1 **cannot** perform:
 - No streaming audio endpoint
 - Recording starts **only** from explicit user tap
 - Audio is a discrete blob, not a stream
+
+## Kai Action Receipts (Phase 3)
+
+Every Kai recommendation, action, escalation, blocked action, and generated output creates an auditable receipt in the `kai_action_receipts` D1 table. This is the foundation for the future ProofTrust Engine.
+
+### What Gets Logged
+
+| Receipt Type | When Created |
+|---|---|
+| `kai_recommendation_generated` | "help me out" selects a top task |
+| `kai_action_prepared` | Action drafted, awaiting confirmation |
+| `kai_action_executed` | Safe action auto-executed |
+| `kai_action_blocked` | Blocked action attempted (via allowedActions or NL pattern) |
+| `kai_escalated_to_admin` | Action escalated to admin |
+| `kai_risk_warning` | Sensitive NL pattern detected in transcript |
+| `kai_explanation_generated` | Kai answers a status/help/screen question |
+| `kai_task_status_changed` | Task skipped, marked done, or status updated |
+| `kai_tasklet_prompt_generated` | Tasklet prompt generated for a task |
+| `kai_blocker_summary_generated` | Blocker summary generated |
+| `kai_admin_note_drafted` | Admin note drafted |
+| `kai_user_message_drafted` | User message drafted |
+| `kai_github_issue_drafted` | GitHub issue drafted |
+
+### What Does NOT Get Logged
+- **Authorization tokens** — never stored in receipts
+- **Raw audio data** — never stored
+- **Secrets or API keys** — never stored
+- **Private documents** — receipt stores only summaries
+
+### How This Prepares Kai for ProofTrust
+Action receipts create an immutable audit trail that will feed into the ProofTrust Engine. Every recommendation and action has a receipt with:
+- Who (userId, userRole)
+- What (receiptType, actionType, actionSummary)
+- Where (appId, currentScreen)
+- Why (riskLevel, requiresConfirmation, approvalStatus)
+- When (createdAt)
+
+### Running Migration 0003
+```bash
+wrangler d1 execute kai-voice --file=./migrations/0003_kai_action_receipts.sql
+```
+
+### Querying Receipts
+
+`GET /api/kai/action-receipts` — **super-admin only**
+
+| Param | Type | Description |
+|-------|------|-------------|
+| `appId` | string | Filter by app ID |
+| `userId` | string | Filter by user ID |
+| `receiptType` | string | Filter by receipt type |
+| `riskLevel` | string | Filter by risk level |
+| `taskId` | string | Filter by task ID |
+| `page` | number | Page number (default: 1) |
+| `pageSize` | number | Page size (default: 20, max: 100) |
+
+```bash
+curl -H "Authorization: Bearer $JWT" \
+  "https://kai.example.com/api/kai/action-receipts?riskLevel=blocked&page=1"
+```
 
 ## Environment Variables
 

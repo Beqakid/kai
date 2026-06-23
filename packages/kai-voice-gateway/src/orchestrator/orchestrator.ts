@@ -1,6 +1,10 @@
 // ── Kai Task Orchestrator — Core Engine ──
+//
+// Phase 3: Integrated with ActionReceiptLogger — every recommendation,
+// action, status change, and generated output creates an auditable receipt.
 
 import { D1Database } from '../types';
+import { ActionReceiptLogger } from '../services/action-receipt-logger';
 import { TaskStore } from './task-store';
 import {
   KaiTask,
@@ -15,11 +19,21 @@ import {
 import { calculatePriorityScore, scoreToPriority, explainPriority } from './priority-scorer';
 import { executeSafeAction, validateActionSafety } from './safe-actions';
 
+/** Context for receipt logging — provided by the gateway layer. */
+export interface OrchestratorReceiptContext {
+  appId: string;
+  userId: string;
+  userRole: string;
+  sessionId?: string;
+}
+
 export class KaiTaskOrchestrator {
   private readonly store: TaskStore;
+  private readonly receiptLogger: ActionReceiptLogger;
 
   constructor(db: D1Database | undefined) {
     this.store = new TaskStore(db);
+    this.receiptLogger = new ActionReceiptLogger(db);
   }
 
   // ── GET /api/kai/tasks ──
@@ -107,10 +121,30 @@ export class KaiTaskOrchestrator {
   }
 
   // ── POST /api/kai/tasks/:id/action ──
-  async executeAction(taskId: string, req: TaskActionRequest): Promise<OrchestratorResponse> {
+  async executeAction(
+    taskId: string,
+    req: TaskActionRequest,
+    receiptCtx?: OrchestratorReceiptContext,
+  ): Promise<OrchestratorResponse> {
     // Safety check
     const safety = validateActionSafety(req.actionType);
     if (!safety.safe) {
+      // Log blocked action receipt
+      if (receiptCtx) {
+        this.receiptLogger.logBlockedAction({
+          appId: receiptCtx.appId,
+          userId: receiptCtx.userId,
+          userRole: receiptCtx.userRole,
+          sessionId: receiptCtx.sessionId,
+          source: 'task-orchestrator',
+          actionType: req.actionType,
+          userIntent: `Execute action: ${req.actionType}`,
+          blockedReason: safety.reason || 'Action blocked in Kai v1',
+          riskLevel: 'blocked',
+          taskId,
+        }).catch(() => {});
+      }
+
       return {
         message: `⛔ ${safety.reason}`,
         requiresConfirmation: false,
@@ -143,6 +177,26 @@ export class KaiTaskOrchestrator {
         result: result.output,
       });
 
+      // Log prepared action receipt
+      if (receiptCtx) {
+        this.receiptLogger.logPreparedAction({
+          appId: receiptCtx.appId,
+          userId: receiptCtx.userId,
+          userRole: receiptCtx.userRole,
+          sessionId: receiptCtx.sessionId,
+          source: 'task-orchestrator',
+          taskId,
+          actionType: req.actionType,
+          actionSummary: `Pending confirmation: ${req.actionType} for "${task.title}"`,
+          riskLevel: task.riskLevel,
+          requiresConfirmation: true,
+          approvalStatus: 'pending',
+        }).catch(() => {});
+      }
+
+      // Log generated output receipt for specific types
+      this.logGeneratedOutputReceipt(req.actionType, task, receiptCtx);
+
       return {
         message: `Action "${req.actionType}" drafted for "${task.title}". Please review and confirm.`,
         task,
@@ -162,6 +216,25 @@ export class KaiTaskOrchestrator {
       result: result.output,
     });
 
+    // Log executed action receipt
+    if (receiptCtx) {
+      this.receiptLogger.logExecutedAction({
+        appId: receiptCtx.appId,
+        userId: receiptCtx.userId,
+        userRole: receiptCtx.userRole,
+        sessionId: receiptCtx.sessionId,
+        source: 'task-orchestrator',
+        taskId,
+        actionType: req.actionType,
+        actionSummary: `Executed: ${req.actionType} for "${task.title}"`,
+        riskLevel: task.riskLevel,
+        kaiResponse: result.output,
+      }).catch(() => {});
+    }
+
+    // Log generated output receipt for specific types
+    this.logGeneratedOutputReceipt(req.actionType, task, receiptCtx);
+
     // Update task status if appropriate
     if (req.actionType === 'update_status') {
       await this.store.updateTaskStatus(taskId, 'in_progress');
@@ -176,7 +249,7 @@ export class KaiTaskOrchestrator {
   }
 
   // ── POST /api/kai/orchestrator/help-me-out ──
-  async helpMeOut(userId: string): Promise<OrchestratorResponse> {
+  async helpMeOut(userId: string, receiptCtx?: OrchestratorReceiptContext): Promise<OrchestratorResponse> {
     const task = await this.store.getTopActionableTask();
     if (!task) {
       return {
@@ -186,6 +259,21 @@ export class KaiTaskOrchestrator {
 
     const explanation = this.explainTopTask(task);
     const suggestedAction = task.suggestedAction || 'generate_tasklet_prompt';
+
+    // Log recommendation receipt
+    if (receiptCtx) {
+      this.receiptLogger.logRecommendation({
+        appId: receiptCtx.appId,
+        userId: receiptCtx.userId,
+        userRole: receiptCtx.userRole,
+        sessionId: receiptCtx.sessionId,
+        source: 'task-orchestrator',
+        taskId: task.id,
+        actionSummary: `Recommended top task: "${task.title}" — ${suggestedAction}`,
+        riskLevel: task.riskLevel,
+        requiresConfirmation: task.riskLevel !== 'low',
+      }).catch(() => {});
+    }
 
     return {
       message: [
@@ -207,7 +295,7 @@ export class KaiTaskOrchestrator {
   }
 
   // ── POST /api/kai/orchestrator/next ──
-  async doNext(userId: string, command: string): Promise<OrchestratorResponse> {
+  async doNext(userId: string, command: string, receiptCtx?: OrchestratorReceiptContext): Promise<OrchestratorResponse> {
     const normalized = command.toLowerCase().trim();
 
     // ── "skip this" ──
@@ -222,6 +310,20 @@ export class KaiTaskOrchestrator {
           actionSummary: `Skipped: "${task.title}"`,
           approvalStatus: 'auto',
         });
+
+        // Log task status change receipt
+        if (receiptCtx) {
+          this.receiptLogger.logTaskStatusChange({
+            appId: receiptCtx.appId,
+            userId: receiptCtx.userId,
+            userRole: receiptCtx.userRole,
+            sessionId: receiptCtx.sessionId,
+            source: 'task-orchestrator',
+            taskId: task.id,
+            actionType: 'update_status',
+            actionSummary: `Skipped: "${task.title}"`,
+          }).catch(() => {});
+        }
 
         // Get the next one
         const next = await this.store.getTopActionableTask();
@@ -250,6 +352,20 @@ export class KaiTaskOrchestrator {
           approvalStatus: 'auto',
         });
 
+        // Log task status change receipt
+        if (receiptCtx) {
+          this.receiptLogger.logTaskStatusChange({
+            appId: receiptCtx.appId,
+            userId: receiptCtx.userId,
+            userRole: receiptCtx.userRole,
+            sessionId: receiptCtx.sessionId,
+            source: 'task-orchestrator',
+            taskId: task.id,
+            actionType: 'update_status',
+            actionSummary: `Completed: "${task.title}"`,
+          }).catch(() => {});
+        }
+
         const next = await this.store.getTopActionableTask();
         return {
           message: `✅ Marked "${task.title}" as done!${next ? ` Next: **${next.title}** (${next.priority}).` : ' All clear! 🎉'}`,
@@ -266,7 +382,7 @@ export class KaiTaskOrchestrator {
 
       const actionType = (task.suggestedAction as any) || 'generate_tasklet_prompt';
       if (SAFE_ACTIONS.has(actionType)) {
-        return this.executeAction(task.id, { actionType, userId });
+        return this.executeAction(task.id, { actionType, userId }, receiptCtx);
       }
 
       return {
@@ -280,14 +396,14 @@ export class KaiTaskOrchestrator {
     if (/tasklet\s*prompt/i.test(normalized)) {
       const task = await this.store.getTopActionableTask();
       if (!task) return { message: 'No task selected for prompt generation.' };
-      return this.executeAction(task.id, { actionType: 'generate_tasklet_prompt', userId });
+      return this.executeAction(task.id, { actionType: 'generate_tasklet_prompt', userId }, receiptCtx);
     }
 
     // ── "summarize blockers" ──
     if (/summarize\s*blocker/i.test(normalized)) {
       const task = await this.store.getTopActionableTask();
       if (!task) return { message: 'No active blockers found.' };
-      return this.executeAction(task.id, { actionType: 'summarize_blockers', userId });
+      return this.executeAction(task.id, { actionType: 'summarize_blockers', userId }, receiptCtx);
     }
 
     // ── "show high priority only" / "what is blocking launch?" ──
@@ -309,11 +425,11 @@ export class KaiTaskOrchestrator {
 
     // ── "what should I work on?" ──
     if (/what\s*should\s*i\s*(work|focus|do)/i.test(normalized)) {
-      return this.helpMeOut(userId);
+      return this.helpMeOut(userId, receiptCtx);
     }
 
     // Default: treat as help-me-out
-    return this.helpMeOut(userId);
+    return this.helpMeOut(userId, receiptCtx);
   }
 
   // ── Get recent actions for the history log ──
@@ -325,7 +441,46 @@ export class KaiTaskOrchestrator {
     };
   }
 
+  // ── Receipt logger accessor (for the API route) ──
+  getReceiptLogger(): ActionReceiptLogger {
+    return this.receiptLogger;
+  }
+
   // ── Helpers ──
+
+  /** Log generated output receipt for specific action types. */
+  private logGeneratedOutputReceipt(
+    actionType: string,
+    task: KaiTask,
+    receiptCtx?: OrchestratorReceiptContext,
+  ): void {
+    if (!receiptCtx) return;
+
+    const typeMap: Record<string, 'kai_tasklet_prompt_generated' | 'kai_blocker_summary_generated'
+      | 'kai_admin_note_drafted' | 'kai_user_message_drafted' | 'kai_github_issue_drafted'> = {
+      'generate_tasklet_prompt': 'kai_tasklet_prompt_generated',
+      'summarize_blockers': 'kai_blocker_summary_generated',
+      'draft_admin_note': 'kai_admin_note_drafted',
+      'draft_user_message': 'kai_user_message_drafted',
+      'draft_github_issue': 'kai_github_issue_drafted',
+    };
+
+    const receiptType = typeMap[actionType];
+    if (!receiptType) return;
+
+    this.receiptLogger.logGeneratedOutput({
+      appId: receiptCtx.appId,
+      userId: receiptCtx.userId,
+      userRole: receiptCtx.userRole,
+      sessionId: receiptCtx.sessionId,
+      source: 'task-orchestrator',
+      taskId: task.id,
+      receiptType,
+      actionType,
+      actionSummary: `Generated ${actionType} for "${task.title}"`,
+      riskLevel: task.riskLevel,
+    }).catch(() => {});
+  }
 
   private explainTopTask(task: KaiTask, weights?: any): string {
     const reasons: string[] = [];
