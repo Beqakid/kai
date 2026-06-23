@@ -106,6 +106,12 @@ export interface OrchestratorResponse {
   requiresConfirmation?: boolean;
   /** Phase 4: Gate decision metadata for blocked/denied/high-risk actions */
   gateDecision?: GateDecisionSummary;
+  /** Phase 5: Pending action ID when confirmation is required */
+  pendingActionId?: string;
+  /** Phase 5: Current pending action status */
+  pendingActionStatus?: string;
+  /** Phase 5: When the pending action expires */
+  expiresAt?: string;
 }
 
 /** Safe actions Kai can auto-execute in v1 */

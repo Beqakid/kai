@@ -26,6 +26,10 @@ export const RECEIPT_TYPES = [
   'kai_admin_note_drafted',
   'kai_user_message_drafted',
   'kai_github_issue_drafted',
+  // Phase 5: Pending confirmation receipts
+  'kai_action_confirmed',
+  'kai_action_denied',
+  'kai_action_expired',
 ] as const;
 
 export type ReceiptType = (typeof RECEIPT_TYPES)[number];
@@ -338,6 +342,98 @@ export class ActionReceiptLogger {
       riskLevel: input.riskLevel || 'safe',
       requiresConfirmation: input.requiresConfirmation ?? false,
       metadata: input.metadata,
+    });
+  }
+
+  // ── Phase 5: Pending action confirmation receipts ──
+
+  /** Log a confirmed pending action. */
+  async logConfirmedAction(input: ReceiptBase & {
+    taskId?: string;
+    actionType: string;
+    actionSummary: string;
+    riskLevel: string;
+    pendingActionId: string;
+    confirmedBy: string;
+  }): Promise<void> {
+    await this.insert({
+      receiptType: 'kai_action_confirmed',
+      appId: input.appId,
+      userId: input.userId,
+      userRole: input.userRole,
+      project: input.project,
+      sessionId: input.sessionId,
+      source: input.source,
+      requestId: input.requestId,
+      taskId: input.taskId,
+      actionType: input.actionType,
+      actionSummary: input.actionSummary,
+      riskLevel: input.riskLevel,
+      approvalStatus: 'approved',
+      metadata: {
+        ...input.metadata,
+        pendingActionId: input.pendingActionId,
+        confirmedBy: input.confirmedBy,
+      },
+    });
+  }
+
+  /** Log a denied pending action. */
+  async logDeniedAction(input: ReceiptBase & {
+    taskId?: string;
+    actionType: string;
+    actionSummary: string;
+    riskLevel: string;
+    pendingActionId: string;
+    deniedBy: string;
+  }): Promise<void> {
+    await this.insert({
+      receiptType: 'kai_action_denied',
+      appId: input.appId,
+      userId: input.userId,
+      userRole: input.userRole,
+      project: input.project,
+      sessionId: input.sessionId,
+      source: input.source,
+      requestId: input.requestId,
+      taskId: input.taskId,
+      actionType: input.actionType,
+      actionSummary: input.actionSummary,
+      riskLevel: input.riskLevel,
+      approvalStatus: 'denied',
+      metadata: {
+        ...input.metadata,
+        pendingActionId: input.pendingActionId,
+        deniedBy: input.deniedBy,
+      },
+    });
+  }
+
+  /** Log an expired pending action. */
+  async logExpiredAction(input: ReceiptBase & {
+    taskId?: string;
+    actionType: string;
+    actionSummary: string;
+    riskLevel: string;
+    pendingActionId: string;
+  }): Promise<void> {
+    await this.insert({
+      receiptType: 'kai_action_expired',
+      appId: input.appId,
+      userId: input.userId,
+      userRole: input.userRole,
+      project: input.project,
+      sessionId: input.sessionId,
+      source: input.source,
+      requestId: input.requestId,
+      taskId: input.taskId,
+      actionType: input.actionType,
+      actionSummary: input.actionSummary,
+      riskLevel: input.riskLevel,
+      metadata: {
+        ...input.metadata,
+        pendingActionId: input.pendingActionId,
+      },
     });
   }
 

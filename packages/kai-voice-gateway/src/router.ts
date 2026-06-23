@@ -1,5 +1,6 @@
 // ── Kai Voice Gateway — Router ──
 //
+// Phase 5: Added pending action routes (list, confirm, deny).
 // Phase 3: Added action receipts API route.
 // All routes require auth + rate limiting.
 // Includes request timeout handling and rate limit cleanup.
@@ -17,6 +18,7 @@ const VOICE_PREFIX = '/api/kai/voice';
 const TASK_PREFIX = '/api/kai/tasks';
 const ORCH_PREFIX = '/api/kai/orchestrator';
 const RECEIPT_PATH = '/api/kai/action-receipts';
+const PENDING_PREFIX = '/api/kai/actions';
 
 /** Request timeout in milliseconds (30 seconds) */
 const REQUEST_TIMEOUT_MS = 30_000;
@@ -246,9 +248,85 @@ export async function handleRequest(
       });
     }
 
+    // ── Phase 5: Pending Action Routes ──
+
+    // GET /api/kai/actions/pending — List pending actions for authenticated user
+    if (path === `${PENDING_PREFIX}/pending` && request.method === 'GET') {
+      return await withTimeout(async () => {
+        const auth = await authenticateAndRateLimit(request, env);
+        const url2 = new URL(request.url);
+        const pendingStore = orchestrator.getPendingStore();
+
+        // Expire overdue actions first
+        await pendingStore.expireOldPendingActions();
+
+        const filters = {
+          appId: url2.searchParams.get('appId') || undefined,
+          userId: url2.searchParams.get('userId') || undefined,
+          taskId: url2.searchParams.get('taskId') || undefined,
+          status: (url2.searchParams.get('status') as any) || undefined,
+          page: parseInt(url2.searchParams.get('page') || '1', 10),
+          pageSize: parseInt(url2.searchParams.get('pageSize') || '20', 10),
+        };
+
+        const result = await pendingStore.listPendingActions(
+          filters,
+          { userId: auth.userId, userRole: auth.userRole },
+        );
+
+        return jsonResponse({
+          pendingActions: result.pendingActions,
+          total: result.total,
+          page: filters.page,
+          pageSize: Math.min(Math.max(1, filters.pageSize || 20), 100),
+        });
+      });
+    }
+
+    // POST /api/kai/actions/:id/confirm — Confirm a pending action
+    const confirmMatch = path.match(/^\/api\/kai\/actions\/([^/]+)\/confirm$/);
+    if (confirmMatch && request.method === 'POST') {
+      return await withTimeout(async () => {
+        const auth = await authenticateAndRateLimit(request, env);
+        const pendingActionId = confirmMatch[1];
+
+        // Don't match "pending" as an ID
+        if (pendingActionId === 'pending') {
+          throw Errors.notFound(path);
+        }
+
+        const result = await orchestrator.confirmPendingAction(
+          pendingActionId,
+          toReceiptCtx(auth),
+        );
+        return jsonResponse(result);
+      });
+    }
+
+    // POST /api/kai/actions/:id/deny — Deny a pending action
+    const denyMatch = path.match(/^\/api\/kai\/actions\/([^/]+)\/deny$/);
+    if (denyMatch && request.method === 'POST') {
+      return await withTimeout(async () => {
+        const auth = await authenticateAndRateLimit(request, env);
+        const pendingActionId = denyMatch[1];
+
+        // Don't match "pending" as an ID
+        if (pendingActionId === 'pending') {
+          throw Errors.notFound(path);
+        }
+
+        const result = await orchestrator.denyPendingAction(
+          pendingActionId,
+          toReceiptCtx(auth),
+        );
+        return jsonResponse(result);
+      });
+    }
+
     // Method exists but wrong HTTP method
     if (path.startsWith(VOICE_PREFIX) || path.startsWith(TASK_PREFIX)
-        || path.startsWith(ORCH_PREFIX) || path === RECEIPT_PATH) {
+        || path.startsWith(ORCH_PREFIX) || path === RECEIPT_PATH
+        || path.startsWith(PENDING_PREFIX)) {
       throw Errors.methodNotAllowed(request.method);
     }
 
