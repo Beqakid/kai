@@ -13,8 +13,12 @@ import { CreateTaskRequest, TaskActionRequest } from './orchestrator/types';
 import { authenticateAndRateLimit, requireAdmin, AuthResult } from './auth';
 import { validateJsonBodySize } from './services/security';
 import { KaiNavigationCore, validateAppId as validateNavAppId, validateRole as validateNavRole, sanitizeNavigationMetadata } from './navigation-core/navigation-core';
+import { seedNavigationRegistries } from './navigation-core/registry-seed-service';
 import { KaiSupportRequestService, sanitizeSupportMetadata } from './support-layer/support-request-service';
 import { KaiSupportedAppId } from './navigation-core/types';
+import { processUiAdapterRequest } from './ui-adapter/adapter-service';
+import { validateUiAdapterRequest, sanitizeUiAdapterMetadata } from './ui-adapter/client-contract';
+import type { KaiUiAdapterRequest } from './ui-adapter/types';
 
 import { cleanupRateLimits } from './services/security';
 
@@ -26,6 +30,7 @@ const PENDING_PREFIX = '/api/kai/actions';
 const PROOFTRUST_PREFIX = '/api/kai/prooftrust';
 const NAVIGATION_PREFIX = '/api/kai/navigation';
 const SUPPORT_PREFIX = '/api/kai/support';
+const UI_ADAPTER_PREFIX = '/api/kai/ui-adapter';
 
 /** Request timeout in milliseconds (30 seconds) */
 const REQUEST_TIMEOUT_MS = 30_000;
@@ -440,6 +445,33 @@ export async function handleRequest(
       });
     }
 
+    // POST /api/kai/navigation/registries/seed — Super-admin only
+    if (path === `${NAVIGATION_PREFIX}/registries/seed` && request.method === 'POST') {
+      return await withTimeout(async () => {
+        const auth = await authenticateAndRateLimit(request, env);
+        requireAdmin(auth.userRole);
+
+        const result = seedNavigationRegistries();
+
+        return jsonResponse({
+          success: true,
+          ...result,
+        });
+      });
+    }
+
+    // GET /api/kai/navigation/apps/:appId/summary — App registry summary
+    const navSummaryMatch = path.match(/^\/api\/kai\/navigation\/apps\/([^/]+)\/summary$/);
+    if (navSummaryMatch && request.method === 'GET') {
+      return await withTimeout(async () => {
+        const auth = await authenticateAndRateLimit(request, env);
+        const appId = navSummaryMatch[1];
+        const navCore = new KaiNavigationCore();
+        const summary = navCore.getAppSummary(appId);
+        return jsonResponse({ summary });
+      });
+    }
+
     // ── Phase 11: Support Request Routes ──
 
     // POST /api/kai/support/requests — Create a support request
@@ -542,11 +574,89 @@ export async function handleRequest(
       });
     }
 
+    // ── Phase 11 Phase 3: UI Adapter Routes ──
+
+    // POST /api/kai/ui-adapter/evaluate — Evaluate a UI adapter request
+    if (path === `${UI_ADAPTER_PREFIX}/evaluate` && request.method === 'POST') {
+      return await withTimeout(async () => {
+        const auth = await authenticateAndRateLimit(request, env);
+        validateJsonBodySize(request);
+        const body = await request.json() as KaiUiAdapterRequest;
+
+        // Validate the request shape
+        const validation = validateUiAdapterRequest(body);
+        if (!validation.valid) {
+          return jsonResponse({
+            appId: body.appId || 'unknown',
+            decision: 'failed',
+            riskLevel: 'low',
+            message: `Validation failed: ${validation.errors.join(' ')}`,
+            commands: [],
+            errors: validation.errors,
+          }, 400);
+        }
+
+        // Token identity is authoritative — body role cannot escalate
+        const authContext = {
+          userId: auth.userId,
+          appId: auth.appId,
+          userRole: auth.userRole,
+        };
+
+        // Body userRole cannot override token role to escalate
+        if (body.userRole && body.userRole !== auth.userRole) {
+          const bodyNormalized = body.userRole.replace(/_/g, '-');
+          if (bodyNormalized === 'super-admin' && auth.userRole !== 'super-admin') {
+            return jsonResponse({
+              appId: body.appId,
+              decision: 'failed',
+              riskLevel: 'blocked',
+              message: 'Cannot escalate role to super-admin via request body.',
+              commands: [],
+              errors: ['Role escalation denied.'],
+            }, 403);
+          }
+        }
+
+        // Process the request through the UI adapter service
+        const response = processUiAdapterRequest(body, authContext);
+
+        // Create receipt via orchestrator's receipt logger
+        try {
+          const receiptLogger = orchestrator.getReceiptLogger();
+          await receiptLogger.logProofTrustReceipt({
+            appId: auth.appId,
+            userId: auth.userId,
+            userRole: auth.userRole,
+            source: 'ui-adapter',
+            receiptType: response.receiptSummary?.receiptType || 'kai_ui_adapter_request_received',
+            actionType: 'ui_adapter_evaluate',
+            actionSummary: response.message.slice(0, 200),
+            riskLevel: response.riskLevel,
+            metadata: {
+              requestAppId: body.appId,
+              requestRouteKey: body.routeKey,
+              requestActionKey: body.actionKey,
+              requestMessage: body.message?.slice(0, 100),
+              decision: response.decision,
+              commandCount: response.commands.length,
+              clientRequestId: body.clientRequestId,
+            },
+          });
+        } catch {
+          // Receipt failures must not block the response
+        }
+
+        return jsonResponse(response);
+      });
+    }
+
     // Method exists but wrong HTTP method
     if (path.startsWith(VOICE_PREFIX) || path.startsWith(TASK_PREFIX)
         || path.startsWith(ORCH_PREFIX) || path === RECEIPT_PATH
         || path.startsWith(PENDING_PREFIX) || path.startsWith(PROOFTRUST_PREFIX)
-        || path.startsWith(NAVIGATION_PREFIX) || path.startsWith(SUPPORT_PREFIX)) {
+        || path.startsWith(NAVIGATION_PREFIX) || path.startsWith(SUPPORT_PREFIX)
+        || path.startsWith(UI_ADAPTER_PREFIX)) {
       throw Errors.methodNotAllowed(request.method);
     }
 
