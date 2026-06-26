@@ -337,3 +337,4 @@ handleKaiCommands(response.commands, {
 - **Phase 2**: App-Specific Route/Action Registries (server registries)
 - **Phase 3**: Cross-App UI Adapter Contract (`POST /api/kai/ui-adapter/evaluate`)
 - **Phase 4**: **This SDK** (frontend client for the adapter endpoint)
+- **Phase 5**: `@kai/ui-components` — reusable React components for rendering SDK command responses

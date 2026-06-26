@@ -266,4 +266,14 @@ Phase 4 will:
 
 **Relationship to this endpoint:** The SDK is the canonical frontend client for `POST /api/kai/ui-adapter/evaluate`. It sanitizes metadata, manages auth tokens securely (never stored), and dispatches UI commands to host-app-provided handlers — never auto-executing navigation, support requests, or sensitive actions.
 
-**Future integration phases:** Phase 5+ will add UI components for rendering Kai commands, real-time state updates, and LLM-powered intent inference. The SDK's handler-based architecture is designed to support these additions without breaking existing integrations.
+**Future integration phases:** Phase 6+ will add real-time state updates and LLM-powered intent inference. The SDK's handler-based architecture is designed to support these additions without breaking existing integrations.
+
+## Frontend UI Components
+
+**Package:** `packages/kai-ui-components` (`@kai/ui-components`)
+
+**Purpose:** Reusable React components that render Kai SDK command responses safely and consistently. Provides 10 components (message bubble, navigation card, confirmation dialog, admin-review banner, support prefill card, blocked notice, unsupported notice, receipt card, command result panel, assistant panel), plus theme tokens and utility helpers.
+
+**Relationship to SDK:** `@kai/ui-components` depends on `@kai/ui-sdk` for types. The SDK handles API communication; the components handle display. Host apps still provide actual handlers for navigation, support, confirmation, and admin review.
+
+**Safety:** Components are display/interaction helpers only. No auto-navigation, no auto-confirmation, no auto-approval, blocked commands terminal, no raw metadata displayed, no sensitive data in support prefills.
