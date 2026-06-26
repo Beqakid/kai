@@ -159,6 +159,13 @@ const ROLE_GUIDANCE: Record<UserRole, string> = {
   vendor: 'I can help you manage your profile, products, and services.',
   customer: 'I can help you find what you need and navigate the platform.',
   viewer: 'I can show you information and help you understand what you see.',
+  caregiver: 'I can help you manage your schedule, clients, and care activities.',
+  client: 'I can help you view your care schedule and connect with your caregiver.',
+  'agency-admin': 'I can help you manage your agency\'s caregivers and clients.',
+  contributor: 'I can help you submit and manage your contributions.',
+  reviewer: 'I can help you review submissions and manage the review queue.',
+  driver: 'I can help you manage your deliveries and navigation.',
+  'public-user': 'I can help you explore and find what you need.',
 };
 
 // ── MAIN SERVICE ──
