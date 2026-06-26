@@ -257,3 +257,13 @@ Phase 4 will:
 4. Implement real-time Kai state via WebSocket or polling.
 5. Add LLM-powered intent inference (replacing deterministic keyword matching).
 6. All frontend integration will respect the same safety constraints — commands remain recommendations only.
+
+## Frontend SDK
+
+**Package:** `packages/kai-ui-sdk` (`@kai/ui-sdk`)
+
+**Purpose:** Reusable TypeScript/React SDK that lets any app in the ecosystem communicate with the Kai UI Adapter endpoint safely. Provides typed API client, command dispatch helpers, React hooks, support helpers, and security-enforced error handling.
+
+**Relationship to this endpoint:** The SDK is the canonical frontend client for `POST /api/kai/ui-adapter/evaluate`. It sanitizes metadata, manages auth tokens securely (never stored), and dispatches UI commands to host-app-provided handlers — never auto-executing navigation, support requests, or sensitive actions.
+
+**Future integration phases:** Phase 5+ will add UI components for rendering Kai commands, real-time state updates, and LLM-powered intent inference. The SDK's handler-based architecture is designed to support these additions without breaking existing integrations.
