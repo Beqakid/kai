@@ -30,6 +30,13 @@ export const RECEIPT_TYPES = [
   'kai_action_confirmed',
   'kai_action_denied',
   'kai_action_expired',
+  // Phase 11: Navigation Core + Support Layer receipts
+  'kai_navigation_requested',
+  'kai_navigation_recommended',
+  'kai_navigation_blocked',
+  'kai_support_request_created',
+  'kai_support_request_status_changed',
+  'kai_support_request_escalated',
 ] as const;
 
 export type ReceiptType = (typeof RECEIPT_TYPES)[number];
