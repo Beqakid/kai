@@ -37,6 +37,11 @@ export const RECEIPT_TYPES = [
   'kai_support_request_created',
   'kai_support_request_status_changed',
   'kai_support_request_escalated',
+  // Phase 11 Phase 2: Registry seed receipts
+  'kai_navigation_registry_seeded',
+  'kai_navigation_registry_updated',
+  'kai_navigation_route_registered',
+  'kai_navigation_action_registered',
 ] as const;
 
 export type ReceiptType = (typeof RECEIPT_TYPES)[number];

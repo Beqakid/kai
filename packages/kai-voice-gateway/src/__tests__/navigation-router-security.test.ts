@@ -98,7 +98,7 @@ describe('Navigation & Support Router Security', () => {
     // High-risk route
     const highResult = navCore.evaluateNavigationRequest(
       { appId: 'viliniu', userId: 'u1', userRole: 'super-admin', source: 'test' },
-      { targetRouteKey: 'payouts' },
+      { targetRouteKey: 'vendor_payouts' },
     );
     expect(highResult.requiresAdminApproval).toBe(true);
     expect(highResult.riskLevel).toBe('high');
@@ -134,7 +134,7 @@ describe('Navigation & Support Router Security', () => {
   it('36. authenticated navigation routes return route data', async () => {
     const env = createEnv();
     const token = await createValidJwt({
-      sub: 'user-1', appId: 'carehia', userRole: 'vendor',
+      sub: 'user-1', appId: 'carehia', userRole: 'caregiver',
       iat: Math.floor(Date.now() / 1000), exp: Math.floor(Date.now() / 1000) + 3600,
     }, TEST_SECRET);
 
@@ -149,7 +149,7 @@ describe('Navigation & Support Router Security', () => {
     const data = await res.json() as any;
     expect(data.routes).toBeDefined();
     expect(data.appId).toBe('carehia');
-    expect(data.userRole).toBe('vendor');
+    expect(data.userRole).toBe('caregiver');
     expect(Array.isArray(data.routes)).toBe(true);
     expect(data.routes.length).toBeGreaterThan(0);
   });

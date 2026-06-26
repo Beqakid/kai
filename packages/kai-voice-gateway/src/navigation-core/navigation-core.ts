@@ -3,8 +3,11 @@
 // Phase 11: Cross-app navigation evaluation, route/action lookup,
 // and recommendation engine.
 //
+// Phase 11 Phase 2: Updated to use app-specific registries from
+// the registries/ folder, with fallback to Phase 1 default-routes.
+//
 // Safety rules:
-// - Never executes external app changes in Phase 1.
+// - Never executes external app changes.
 // - Returns recommendations only.
 // - Validates appId and role before any lookup.
 // - Uses Permission Gate risk rules for risky actions.
@@ -23,13 +26,15 @@ import {
   KaiNavigationDecision,
   KaiRouteRegistryEntry,
   KaiActionRegistryEntry,
+  KaiAppRegistrySummary,
 } from './types';
 import {
-  getDefaultRoutesForApp,
-  getDefaultActionsForApp,
-  getDefaultRouteByKey,
-  getDefaultActionByKey,
-} from './default-routes';
+  getRegistryRoutesForApp,
+  getRegistryActionsForApp,
+  getRegistryRouteByKey,
+  getRegistryActionByKey,
+} from './registries/index';
+import { getAppRegistrySummary } from './registry-seed-service';
 import { Errors } from '../errors';
 
 // ── Metadata sanitization ──
@@ -87,7 +92,6 @@ export function validateRole(role: string): KaiUserRole {
 export class KaiNavigationCore {
   /**
    * Resolve a navigation intent from natural-language or explicit route/action keys.
-   * Returns the intent parsed into structured form.
    */
   resolveNavigationIntent(input: {
     targetRouteKey?: string;
@@ -107,7 +111,7 @@ export class KaiNavigationCore {
 
   /**
    * Get all routes for an app, filtered by role.
-   * Returns only routes the user's role is permitted to see.
+   * Uses Phase 2 app-specific registries.
    */
   getRoutesForApp(
     appId: string,
@@ -116,7 +120,7 @@ export class KaiNavigationCore {
     const validAppId = validateAppId(appId);
     const validRole = validateRole(role);
 
-    return getDefaultRoutesForApp(validAppId).filter(
+    return getRegistryRoutesForApp(validAppId).filter(
       (route) =>
         route.isActive && route.allowedRoles.includes(validRole),
     );
@@ -130,12 +134,12 @@ export class KaiNavigationCore {
     routeKey: string,
   ): KaiRouteRegistryEntry | undefined {
     const validAppId = validateAppId(appId);
-    return getDefaultRouteByKey(validAppId, routeKey);
+    return getRegistryRouteByKey(validAppId, routeKey);
   }
 
   /**
    * Get all actions for an app, filtered by role.
-   * Returns only actions the user's role is permitted to see.
+   * Uses Phase 2 app-specific registries.
    */
   getActionsForApp(
     appId: string,
@@ -144,7 +148,7 @@ export class KaiNavigationCore {
     const validAppId = validateAppId(appId);
     const validRole = validateRole(role);
 
-    return getDefaultActionsForApp(validAppId).filter(
+    return getRegistryActionsForApp(validAppId).filter(
       (action) =>
         action.isActive && action.allowedRoles.includes(validRole),
     );
@@ -158,7 +162,15 @@ export class KaiNavigationCore {
     actionKey: string,
   ): KaiActionRegistryEntry | undefined {
     const validAppId = validateAppId(appId);
-    return getDefaultActionByKey(validAppId, actionKey);
+    return getRegistryActionByKey(validAppId, actionKey);
+  }
+
+  /**
+   * Get app summary with route/action counts, risk levels, etc.
+   */
+  getAppSummary(appId: string): KaiAppRegistrySummary {
+    const validAppId = validateAppId(appId);
+    return getAppRegistrySummary(validAppId);
   }
 
   /**
@@ -167,8 +179,7 @@ export class KaiNavigationCore {
    * Checks the route/action registry, verifies role access,
    * evaluates risk level, and returns a decision.
    *
-   * Phase 1: Returns recommendations only — never triggers
-   * external app navigation.
+   * Returns recommendations only — never triggers external app navigation.
    */
   evaluateNavigationRequest(
     context: KaiNavigationContext,
@@ -180,7 +191,7 @@ export class KaiNavigationCore {
 
     // ── Route-based evaluation ──
     if (intent.targetRouteKey) {
-      const route = getDefaultRouteByKey(validAppId, intent.targetRouteKey);
+      const route = getRegistryRouteByKey(validAppId, intent.targetRouteKey);
 
       if (!route) {
         return {
@@ -229,7 +240,7 @@ export class KaiNavigationCore {
 
     // ── Action-based evaluation ──
     if (intent.targetActionKey) {
-      const action = getDefaultActionByKey(validAppId, intent.targetActionKey);
+      const action = getRegistryActionByKey(validAppId, intent.targetActionKey);
 
       if (!action) {
         return {
@@ -252,7 +263,7 @@ export class KaiNavigationCore {
           decision: 'blocked',
           requiresConfirmation: false,
           requiresAdminApproval: false,
-          message: `Action "${action.actionLabel}" is blocked in Phase 1.`,
+          message: `Action "${action.actionLabel}" is blocked.`,
           recommendedFallback: 'Use the platform UI to perform this action manually.',
         };
       }
@@ -355,7 +366,7 @@ export class KaiNavigationCore {
 
     if (action.riskLevel === 'blocked' || action.blocked) {
       decision = 'blocked';
-      message = `Action "${action.actionLabel}" is blocked in Phase 1.`;
+      message = `Action "${action.actionLabel}" is blocked.`;
     } else if (action.requiresAdminApproval || action.riskLevel === 'high') {
       decision = 'requires_admin_approval';
       message = `Action "${action.actionLabel}" is high-risk and requires admin approval.`;

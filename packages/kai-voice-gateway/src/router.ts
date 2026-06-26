@@ -13,6 +13,7 @@ import { CreateTaskRequest, TaskActionRequest } from './orchestrator/types';
 import { authenticateAndRateLimit, requireAdmin, AuthResult } from './auth';
 import { validateJsonBodySize } from './services/security';
 import { KaiNavigationCore, validateAppId as validateNavAppId, validateRole as validateNavRole, sanitizeNavigationMetadata } from './navigation-core/navigation-core';
+import { seedNavigationRegistries } from './navigation-core/registry-seed-service';
 import { KaiSupportRequestService, sanitizeSupportMetadata } from './support-layer/support-request-service';
 import { KaiSupportedAppId } from './navigation-core/types';
 
@@ -437,6 +438,33 @@ export async function handleRequest(
         const receipt = navCore.createNavigationReceipt(result, context);
 
         return jsonResponse({ result, receipt });
+      });
+    }
+
+    // POST /api/kai/navigation/registries/seed — Super-admin only
+    if (path === `${NAVIGATION_PREFIX}/registries/seed` && request.method === 'POST') {
+      return await withTimeout(async () => {
+        const auth = await authenticateAndRateLimit(request, env);
+        requireAdmin(auth.userRole);
+
+        const result = seedNavigationRegistries();
+
+        return jsonResponse({
+          success: true,
+          ...result,
+        });
+      });
+    }
+
+    // GET /api/kai/navigation/apps/:appId/summary — App registry summary
+    const navSummaryMatch = path.match(/^\/api\/kai\/navigation\/apps\/([^/]+)\/summary$/);
+    if (navSummaryMatch && request.method === 'GET') {
+      return await withTimeout(async () => {
+        const auth = await authenticateAndRateLimit(request, env);
+        const appId = navSummaryMatch[1];
+        const navCore = new KaiNavigationCore();
+        const summary = navCore.getAppSummary(appId);
+        return jsonResponse({ summary });
       });
     }
 

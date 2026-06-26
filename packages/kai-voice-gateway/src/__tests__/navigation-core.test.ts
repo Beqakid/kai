@@ -1,4 +1,5 @@
 // ── Navigation Core Tests — Phase 11 ──
+// Updated for Phase 11 Phase 2 app-specific registries.
 //
 // Tests 1–14: Navigation Core service validation, role access,
 // risk levels, decisions, receipts, and metadata sanitization.
@@ -7,6 +8,7 @@ import { describe, it, expect } from 'vitest';
 import { KaiNavigationCore, sanitizeNavigationMetadata, validateAppId, validateRole } from '../navigation-core/navigation-core';
 import { ALL_DEFAULT_ROUTES, ALL_DEFAULT_ACTIONS, getDefaultRoutesForApp, getDefaultRouteByKey } from '../navigation-core/default-routes';
 import { KAI_SUPPORTED_APP_IDS } from '../navigation-core/types';
+import { getRegistryRoutesForApp, getRegistryActionsForApp } from '../navigation-core/registries/index';
 
 const navCore = new KaiNavigationCore();
 
@@ -27,9 +29,9 @@ describe('Navigation Core', () => {
 
   // ── Test 3: Routes listed by app and role ──
   it('3. lists routes filtered by app and role', () => {
-    const routes = navCore.getRoutesForApp('carehia', 'vendor');
+    // Phase 2: caregiver role in Carehia
+    const routes = navCore.getRoutesForApp('carehia', 'caregiver');
     expect(routes.length).toBeGreaterThan(0);
-    // Vendor should see work, schedule, clients, etc. but not admin queues
     const routeKeys = routes.map(r => r.routeKey);
     expect(routeKeys).toContain('today');
     expect(routeKeys).toContain('work');
@@ -43,7 +45,7 @@ describe('Navigation Core', () => {
     const routeKeys = routes.map(r => r.routeKey);
     expect(routeKeys).not.toContain('admin_vendor_review');
     expect(routeKeys).not.toContain('admin_disputes');
-    expect(routeKeys).not.toContain('payouts');
+    expect(routeKeys).not.toContain('vendor_payouts');
     // Customer should see today, orders, support
     expect(routeKeys).toContain('today');
     expect(routeKeys).toContain('orders');
@@ -53,7 +55,7 @@ describe('Navigation Core', () => {
   // ── Test 5: Low-risk navigation is allowed/recommended ──
   it('5. low-risk navigation returns allowed decision', () => {
     const result = navCore.evaluateNavigationRequest(
-      { appId: 'carehia', userId: 'u1', userRole: 'vendor', source: 'test' },
+      { appId: 'carehia', userId: 'u1', userRole: 'caregiver', source: 'test' },
       { targetRouteKey: 'today' },
     );
     expect(result.decision).toBe('allowed');
@@ -64,9 +66,10 @@ describe('Navigation Core', () => {
 
   // ── Test 6: Medium-risk route requires confirmation ──
   it('6. medium-risk route requires confirmation', () => {
+    // Phase 2: admin_support_queue is medium in Carehia
     const result = navCore.evaluateNavigationRequest(
       { appId: 'carehia', userId: 'u1', userRole: 'admin', source: 'test' },
-      { targetRouteKey: 'admin_incident_queue' },
+      { targetRouteKey: 'admin_support_queue' },
     );
     expect(result.decision).toBe('requires_confirmation');
     expect(result.riskLevel).toBe('medium');
@@ -96,9 +99,10 @@ describe('Navigation Core', () => {
 
   // ── Test 9: Viliniu payout route is high risk ──
   it('9. Viliniu payout route is high risk', () => {
+    // Phase 2: route key is vendor_payouts
     const result = navCore.evaluateNavigationRequest(
       { appId: 'viliniu', userId: 'u1', userRole: 'super-admin', source: 'test' },
-      { targetRouteKey: 'payouts' },
+      { targetRouteKey: 'vendor_payouts' },
     );
     expect(result.riskLevel).toBe('high');
     expect(result.decision).toBe('requires_admin_approval');
@@ -116,8 +120,9 @@ describe('Navigation Core', () => {
 
   // ── Test 11: Volau emergency help is low risk ──
   it('11. Volau emergency_help route is low risk', () => {
+    // Phase 2: role is public-user
     const result = navCore.evaluateNavigationRequest(
-      { appId: 'volau', userId: 'u1', userRole: 'customer', source: 'test' },
+      { appId: 'volau', userId: 'u1', userRole: 'public-user', source: 'test' },
       { targetRouteKey: 'emergency_help' },
     );
     expect(result.riskLevel).toBe('low');
@@ -126,12 +131,10 @@ describe('Navigation Core', () => {
 
   // ── Test 12: JCC receipts route is super-admin only ──
   it('12. JCC receipts route is super-admin only', () => {
-    // Admin should not see receipts
     const adminRoutes = navCore.getRoutesForApp('jon-command-center', 'admin');
     const adminKeys = adminRoutes.map(r => r.routeKey);
     expect(adminKeys).not.toContain('receipts');
 
-    // Super-admin should see receipts
     const superRoutes = navCore.getRoutesForApp('jon-command-center', 'super-admin');
     const superKeys = superRoutes.map(r => r.routeKey);
     expect(superKeys).toContain('receipts');
@@ -139,13 +142,13 @@ describe('Navigation Core', () => {
 
   // ── Test 13: Navigation receipt created ──
   it('13. navigation receipt is created with correct fields', () => {
-    const context = { appId: 'carehia' as const, userId: 'u1', userRole: 'vendor' as const, source: 'test' };
+    const context = { appId: 'carehia' as const, userId: 'u1', userRole: 'caregiver' as const, source: 'test' };
     const result = navCore.evaluateNavigationRequest(context, { targetRouteKey: 'today' });
     const receipt = navCore.createNavigationReceipt(result, context);
 
     expect(receipt.appId).toBe('carehia');
     expect(receipt.userId).toBe('u1');
-    expect(receipt.userRole).toBe('vendor');
+    expect(receipt.userRole).toBe('caregiver');
     expect(receipt.routeKey).toBe('today');
     expect(receipt.decision).toBe('allowed');
     expect(receipt.riskLevel).toBe('low');
@@ -187,9 +190,10 @@ describe('Navigation Core', () => {
 
   // ── Additional: Role-blocked route returns blocked ──
   it('returns blocked when role lacks access to a route', () => {
+    // Phase 2: vendor_payouts, customer role
     const result = navCore.evaluateNavigationRequest(
       { appId: 'viliniu', userId: 'u1', userRole: 'customer', source: 'test' },
-      { targetRouteKey: 'payouts' },
+      { targetRouteKey: 'vendor_payouts' },
     );
     expect(result.decision).toBe('blocked');
   });
