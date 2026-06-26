@@ -135,6 +135,20 @@ const APP_CONTEXTS: Record<AppId, AppContext> = {
       ],
     },
   },
+  kai: {
+    greeting: "I'm Kai, your Kai system assistant",
+    capabilities: [
+      'task management',
+      'action receipts',
+      'navigation guidance',
+    ],
+    screens: {
+      dashboard: [
+        'view tasks',
+        'view receipts',
+      ],
+    },
+  },
 };
 
 // ── ROLE-BASED GUIDANCE ──

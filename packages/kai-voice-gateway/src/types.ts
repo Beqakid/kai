@@ -6,6 +6,7 @@ export const VALID_APP_IDS = [
   'carehia',
   'viliniu',
   'volau',
+  'kai',
 ] as const;
 export type AppId = (typeof VALID_APP_IDS)[number];
 
@@ -86,6 +87,14 @@ export const ALLOWED_ACTIONS_REGISTRY: Record<AppId, Record<UserRole, readonly s
     'super-admin': ['view', 'edit', 'manage-users', 'view-analytics', 'manage-settings'],
     admin: ['view', 'edit', 'manage-users', 'view-analytics'],
     vendor: ['view', 'edit'],
+    customer: ['view'],
+    viewer: ['view'],
+  },
+  kai: {
+    'super-admin': ['view', 'edit', 'manage-users', 'view-analytics', 'manage-settings',
+      'list_tasks', 'create_task', 'prioritize_tasks', 'execute_task_action', 'help_me_out', 'orchestrator_next'],
+    admin: ['view', 'edit', 'view-analytics'],
+    vendor: ['view'],
     customer: ['view'],
     viewer: ['view'],
   },

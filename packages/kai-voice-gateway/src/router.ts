@@ -12,6 +12,10 @@ import { KaiTaskOrchestrator, OrchestratorReceiptContext } from './orchestrator/
 import { CreateTaskRequest, TaskActionRequest } from './orchestrator/types';
 import { authenticateAndRateLimit, requireAdmin, AuthResult } from './auth';
 import { validateJsonBodySize } from './services/security';
+import { KaiNavigationCore, validateAppId as validateNavAppId, validateRole as validateNavRole, sanitizeNavigationMetadata } from './navigation-core/navigation-core';
+import { KaiSupportRequestService, sanitizeSupportMetadata } from './support-layer/support-request-service';
+import { KaiSupportedAppId } from './navigation-core/types';
+
 import { cleanupRateLimits } from './services/security';
 
 const VOICE_PREFIX = '/api/kai/voice';
@@ -20,6 +24,8 @@ const ORCH_PREFIX = '/api/kai/orchestrator';
 const RECEIPT_PATH = '/api/kai/action-receipts';
 const PENDING_PREFIX = '/api/kai/actions';
 const PROOFTRUST_PREFIX = '/api/kai/prooftrust';
+const NAVIGATION_PREFIX = '/api/kai/navigation';
+const SUPPORT_PREFIX = '/api/kai/support';
 
 /** Request timeout in milliseconds (30 seconds) */
 const REQUEST_TIMEOUT_MS = 30_000;
@@ -376,10 +382,171 @@ export async function handleRequest(
       });
     }
 
+
+    // ── Phase 11: Navigation Core Routes ──
+
+    // GET /api/kai/navigation/apps/:appId/routes — List routes for an app
+    const navRoutesMatch = path.match(/^\/api\/kai\/navigation\/apps\/([^/]+)\/routes$/);
+    if (navRoutesMatch && request.method === 'GET') {
+      return await withTimeout(async () => {
+        const auth = await authenticateAndRateLimit(request, env);
+        const appId = navRoutesMatch[1];
+        const navCore = new KaiNavigationCore();
+        const routes = navCore.getRoutesForApp(appId, auth.userRole);
+        return jsonResponse({ routes, appId, userRole: auth.userRole });
+      });
+    }
+
+    // GET /api/kai/navigation/apps/:appId/actions — List actions for an app
+    const navActionsMatch = path.match(/^\/api\/kai\/navigation\/apps\/([^/]+)\/actions$/);
+    if (navActionsMatch && request.method === 'GET') {
+      return await withTimeout(async () => {
+        const auth = await authenticateAndRateLimit(request, env);
+        const appId = navActionsMatch[1];
+        const navCore = new KaiNavigationCore();
+        const actions = navCore.getActionsForApp(appId, auth.userRole);
+        return jsonResponse({ actions, appId, userRole: auth.userRole });
+      });
+    }
+
+    // POST /api/kai/navigation/evaluate — Evaluate a navigation request
+    if (path === `${NAVIGATION_PREFIX}/evaluate` && request.method === 'POST') {
+      return await withTimeout(async () => {
+        const auth = await authenticateAndRateLimit(request, env);
+        validateJsonBodySize(request);
+        const body = await request.json() as {
+          targetRouteKey?: string;
+          targetActionKey?: string;
+          targetAppId?: string;
+          naturalLanguageQuery?: string;
+          currentScreen?: string;
+        };
+
+        const navCore = new KaiNavigationCore();
+        const context = {
+          appId: auth.appId as KaiSupportedAppId,
+          userId: auth.userId,
+          userRole: auth.userRole as any,
+          currentScreen: body.currentScreen,
+          source: 'api',
+        };
+        const intent = navCore.resolveNavigationIntent(body);
+        const result = navCore.evaluateNavigationRequest(context, intent);
+
+        // Create receipt
+        const receipt = navCore.createNavigationReceipt(result, context);
+
+        return jsonResponse({ result, receipt });
+      });
+    }
+
+    // ── Phase 11: Support Request Routes ──
+
+    // POST /api/kai/support/requests — Create a support request
+    if (path === `${SUPPORT_PREFIX}/requests` && request.method === 'POST') {
+      return await withTimeout(async () => {
+        const auth = await authenticateAndRateLimit(request, env);
+        validateJsonBodySize(request);
+        const body = await request.json() as Record<string, unknown>;
+
+        const supportService = new KaiSupportRequestService();
+        const result = supportService.createSupportRequest({
+          appId: body.appId as string || auth.appId,
+          // Token identity is authoritative — never trust body userId/role
+          requesterUserId: auth.userId,
+          requesterRole: auth.userRole,
+          requesterName: body.requesterName as string | undefined,
+          requesterEmail: body.requesterEmail as string | undefined,
+          requestType: body.requestType as string,
+          requestTitle: body.requestTitle as string,
+          requestDescription: body.requestDescription as string,
+          currentScreen: body.currentScreen as string | undefined,
+          relatedRouteKey: body.relatedRouteKey as string | undefined,
+          relatedActionKey: body.relatedActionKey as string | undefined,
+          urgency: body.urgency as string | undefined,
+          source: body.source as string || 'api',
+          metadata: sanitizeSupportMetadata(body.metadata as Record<string, unknown> | undefined),
+        });
+
+        return jsonResponse(result, 201);
+      });
+    }
+
+    // GET /api/kai/support/requests — List support requests
+    if (path === `${SUPPORT_PREFIX}/requests` && request.method === 'GET') {
+      return await withTimeout(async () => {
+        const auth = await authenticateAndRateLimit(request, env);
+        const supportService = new KaiSupportRequestService();
+        const url2 = new URL(request.url);
+        const appIdFilter = url2.searchParams.get('appId') || undefined;
+        const statusFilter = url2.searchParams.get('status') || undefined;
+
+        let requests;
+        if (auth.userRole === 'super-admin') {
+          requests = supportService.listAllSupportRequests({ status: statusFilter, appId: appIdFilter });
+        } else if (auth.userRole === 'admin') {
+          const targetAppId = appIdFilter || auth.appId;
+          requests = supportService.listSupportRequestsForApp(targetAppId, { status: statusFilter });
+        } else {
+          requests = supportService.listSupportRequestsForUser(auth.userId, appIdFilter);
+        }
+
+        return jsonResponse({ requests, total: requests.length });
+      });
+    }
+
+    // GET /api/kai/support/requests/:id — Get a specific support request
+    const supportRequestMatch = path.match(/^\/api\/kai\/support\/requests\/([^/]+)$/);
+    if (supportRequestMatch && request.method === 'GET') {
+      return await withTimeout(async () => {
+        const auth = await authenticateAndRateLimit(request, env);
+        const requestId = supportRequestMatch[1];
+        const supportService = new KaiSupportRequestService();
+        const supportRequest = supportService.getSupportRequest(requestId);
+
+        if (!supportRequest) {
+          throw Errors.notFound(`Support request ${requestId}`);
+        }
+
+        // Regular users can only see their own requests
+        if (auth.userRole !== 'super-admin' && auth.userRole !== 'admin'
+            && supportRequest.requesterUserId !== auth.userId) {
+          throw Errors.forbidden('You can only view your own support requests.');
+        }
+
+        return jsonResponse({ request: supportRequest });
+      });
+    }
+
+    // POST /api/kai/support/requests/:id/status — Update status
+    const supportStatusMatch = path.match(/^\/api\/kai\/support\/requests\/([^/]+)\/status$/);
+    if (supportStatusMatch && request.method === 'POST') {
+      return await withTimeout(async () => {
+        const auth = await authenticateAndRateLimit(request, env);
+        validateJsonBodySize(request);
+        const requestId = supportStatusMatch[1];
+        const body = await request.json() as { status: string };
+
+        if (!body.status) {
+          throw Errors.missingField('status');
+        }
+
+        const supportService = new KaiSupportRequestService();
+        const result = supportService.updateSupportRequestStatus(
+          requestId,
+          body.status,
+          auth.userRole,
+        );
+
+        return jsonResponse(result);
+      });
+    }
+
     // Method exists but wrong HTTP method
     if (path.startsWith(VOICE_PREFIX) || path.startsWith(TASK_PREFIX)
         || path.startsWith(ORCH_PREFIX) || path === RECEIPT_PATH
-        || path.startsWith(PENDING_PREFIX) || path.startsWith(PROOFTRUST_PREFIX)) {
+        || path.startsWith(PENDING_PREFIX) || path.startsWith(PROOFTRUST_PREFIX)
+        || path.startsWith(NAVIGATION_PREFIX) || path.startsWith(SUPPORT_PREFIX)) {
       throw Errors.methodNotAllowed(request.method);
     }
 
